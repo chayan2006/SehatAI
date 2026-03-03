@@ -1,0 +1,102 @@
+import React, { useState } from 'react';
+import { Sidebar } from '@/components/Sidebar';
+import { PatientSidebar } from '@/components/PatientSidebar';
+import { DoctorSidebar } from '@/components/DoctorSidebar';
+import { TopNav, Role } from '@/components/TopNav';
+
+// Admin Pages
+import Dashboard from '@/pages/Dashboard';
+import Patients from '@/pages/Patients';
+import EmergencyAlerts from '@/pages/EmergencyAlerts';
+import AgentLogs from '@/pages/AgentLogs';
+import Appointments from '@/pages/Appointments';
+import Analytics from '@/pages/Analytics';
+import Settings from '@/pages/Settings';
+import AdminAmbulance from '@/pages/AdminAmbulance';
+
+// Patient Pages
+import PatientDashboard from '@/pages/patient/PatientDashboard';
+import PatientMedications from '@/pages/patient/PatientMedications';
+import PatientAppointments from '@/pages/patient/PatientAppointments';
+import PatientHistory from '@/pages/patient/PatientHistory';
+import PatientAmbulance from '@/pages/patient/PatientAmbulance';
+
+// Doctor Pages
+import DoctorTriage from '@/pages/doctor/DoctorTriage';
+import DoctorPatients from '@/pages/doctor/DoctorPatients';
+import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
+import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
+
+export default function App() {
+  const [role, setRole] = useState<Role>('doctor');
+  const [adminTab, setAdminTab] = useState('dashboard');
+  const [patientTab, setPatientTab] = useState('dashboard');
+  const [doctorTab, setDoctorTab] = useState('triage');
+
+  const renderAdminContent = () => {
+    switch (adminTab) {
+      case 'dashboard': return <Dashboard />;
+      case 'patients': return <Patients />;
+      case 'alerts': return <EmergencyAlerts />;
+      case 'ambulance': return <AdminAmbulance />;
+      case 'logs': return <AgentLogs />;
+      case 'appointments': return <Appointments />;
+      case 'analytics': return <Analytics />;
+      case 'settings': return <Settings />;
+      default: return <Dashboard />;
+    }
+  };
+
+  const renderPatientContent = () => {
+    switch (patientTab) {
+      case 'dashboard': return <PatientDashboard />;
+      case 'medications': return <PatientMedications />;
+      case 'appointments': return <PatientAppointments />;
+      case 'history': return <PatientHistory />;
+      case 'ambulance': return <PatientAmbulance />;
+      case 'settings': return <Settings />; // Reusing settings for now
+      default: return <PatientDashboard />;
+    }
+  };
+
+  const renderDoctorContent = () => {
+    switch (doctorTab) {
+      case 'triage': return <DoctorTriage />;
+      case 'patients': return <DoctorPatients />;
+      case 'consultations': return <DoctorConsultations />;
+      case 'ambulance': return <DoctorAmbulance />;
+      case 'ai-insights': return <AgentLogs />; // Reusing agent logs for AI insights
+      case 'settings': return <Settings />; // Reusing settings
+      default: return <DoctorTriage />;
+    }
+  };
+
+  const renderSidebar = () => {
+    switch (role) {
+      case 'admin': return <Sidebar activeTab={adminTab} onTabChange={setAdminTab} />;
+      case 'doctor': return <DoctorSidebar activeTab={doctorTab} onTabChange={setDoctorTab} />;
+      case 'patient': return <PatientSidebar activeTab={patientTab} onTabChange={setPatientTab} />;
+    }
+  };
+
+  const renderContent = () => {
+    switch (role) {
+      case 'admin': return renderAdminContent();
+      case 'doctor': return renderDoctorContent();
+      case 'patient': return renderPatientContent();
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-slate-50/50">
+      {renderSidebar()}
+      
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopNav role={role} onRoleChange={setRole} />
+        <main className="flex-1 overflow-y-auto">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+}
