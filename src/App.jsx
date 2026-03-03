@@ -3,6 +3,8 @@ import { Sidebar } from '@/components/Sidebar';
 import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
 import { TopNav } from '@/components/TopNav';
+import Login from '@/pages/Login';
+import AdminLogin from '@/pages/AdminLogin';
 
 // Admin Pages
 import Dashboard from '@/pages/Dashboard';
@@ -28,6 +30,8 @@ import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
 import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login'
   const [role, setRole] = useState('doctor');
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
@@ -86,6 +90,33 @@ export default function App() {
       case 'patient': return renderPatientContent();
     }
   };
+
+  if (!isAuthenticated) {
+    if (authStep === 'gateway') {
+      return (
+        <Login
+          onLogin={(selectedRole) => {
+            if (selectedRole === 'admin') {
+              setRole('admin');
+              setAuthStep('admin_login');
+            } else {
+              setRole(selectedRole);
+              setIsAuthenticated(true);
+            }
+          }}
+        />
+      );
+    }
+
+    if (authStep === 'admin_login') {
+      return (
+        <AdminLogin
+          onConfirm={() => setIsAuthenticated(true)}
+          onBack={() => setAuthStep('gateway')}
+        />
+      );
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50/50">
