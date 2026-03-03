@@ -8,6 +8,7 @@ import AdminLogin from '@/pages/AdminLogin';
 
 // Admin Pages
 import Dashboard from '@/pages/Dashboard';
+import AdminDashboard from '@/pages/AdminDashboard';
 import Patients from '@/pages/Patients';
 import EmergencyAlerts from '@/pages/EmergencyAlerts';
 import AgentLogs from '@/pages/AgentLogs';
@@ -39,7 +40,7 @@ export default function App() {
 
   const renderAdminContent = () => {
     switch (adminTab) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <AdminDashboard />;
       case 'patients': return <Patients />;
       case 'alerts': return <EmergencyAlerts />;
       case 'ambulance': return <AdminAmbulance />;
@@ -118,16 +119,5 @@ export default function App() {
     }
   }
 
-  return (
-    <div className="flex min-h-screen bg-slate-50/50">
-      {renderSidebar()}
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <TopNav role={role} onRoleChange={setRole} />
-        <main className="flex-1 overflow-y-auto">
-          {renderContent()}
-        </main>
-      </div>
-    </div>
-  );
+  return <AdminDashboard />;
 }

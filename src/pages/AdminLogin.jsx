@@ -200,7 +200,15 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="block text-sm font-semibold text-slate-700" htmlFor="token">Security Token / Password</label>
-                                        <a className="text-xs font-medium text-primary hover:text-primary/80" href="#">Reset Token?</a>
+                                        <a
+                                            className="text-xs font-medium text-primary hover:text-primary/80 cursor-pointer"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                alert("Token reset protocol initiated. Please check your secure email.");
+                                            }}
+                                        >
+                                            Reset Token?
+                                        </a>
                                     </div>
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">encrypted</span>
@@ -226,11 +234,19 @@ export default function AdminLogin({ onConfirm, onBack }) {
 
                             {/* MFA Integration */}
                             <div className="grid grid-cols-2 gap-4">
-                                <button className="flex items-center justify-center gap-2 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group" type="button">
+                                <button
+                                    className="flex items-center justify-center gap-2 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group"
+                                    type="button"
+                                    onClick={() => alert("Initializing Biometric Hardware Capture...")}
+                                >
                                     <span className="material-symbols-outlined text-slate-600 group-hover:text-primary">fingerprint</span>
                                     <span className="text-sm font-semibold text-slate-700">Biometric</span>
                                 </button>
-                                <button className="flex items-center justify-center gap-2 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group" type="button">
+                                <button
+                                    className="flex items-center justify-center gap-2 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group"
+                                    type="button"
+                                    onClick={() => alert("Searching for FIDO2 Security Key on USB/NFC...")}
+                                >
                                     <span className="material-symbols-outlined text-slate-600 group-hover:text-primary">key</span>
                                     <span className="text-sm font-semibold text-slate-700">FIDO2 Key</span>
                                 </button>
