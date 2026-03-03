@@ -3,20 +3,13 @@ import { Bell, Search, UserCircle, ShieldAlert, User, Stethoscope, X, Check, Act
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-export type Role = 'admin' | 'doctor' | 'patient';
-
-interface TopNavProps {
-  role: Role;
-  onRoleChange: (role: Role) => void;
-}
-
-export function TopNav({ role, onRoleChange }: TopNavProps) {
+export function TopNav({ role, onRoleChange }) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowNotifications(false);
       }
     }
@@ -89,20 +82,20 @@ export function TopNav({ role, onRoleChange }: TopNavProps) {
         </div>
       </div>
       <div className="flex items-center space-x-4">
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={cycleRole}
           className={buttonProps.className}
         >
           {buttonProps.icon}
           {buttonProps.text}
         </Button>
-        
+
         <div className="relative" ref={dropdownRef}>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="relative text-slate-500 hover:text-slate-900"
             onClick={() => setShowNotifications(!showNotifications)}
           >
@@ -122,8 +115,8 @@ export function TopNav({ role, onRoleChange }: TopNavProps) {
                 {notifications.length > 0 ? (
                   <div className="divide-y divide-slate-100">
                     {notifications.map((notification) => (
-                      <div 
-                        key={notification.id} 
+                      <div
+                        key={notification.id}
                         className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer flex items-start space-x-3 ${notification.unread ? 'bg-slate-50/50' : ''}`}
                       >
                         <div className={`p-2 rounded-full flex-shrink-0 ${notification.bg} ${notification.color}`}>

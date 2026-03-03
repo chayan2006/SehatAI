@@ -2,12 +2,7 @@ import React from 'react';
 import { LayoutDashboard, Users, Activity, Calendar, Settings, Bell, ShieldAlert, PhoneCall, Ambulance } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-}
-
-export function Sidebar({ className, activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ className, activeTab, onTabChange }) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'patients', label: 'Patients', icon: Users },

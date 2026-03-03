@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Ambulance, MapPin, Clock, AlertTriangle, PhoneCall, Activity } from 'lucide-react';
-import { AmbulanceMap, Dispatch } from '@/components/AmbulanceMap';
+import { AmbulanceMap } from '@/components/AmbulanceMap';
 
-const activeDispatches: Dispatch[] = [
+const activeDispatches = [
   { id: 1, patient: 'Eleanor Vance', location: '123 Maple St, Springfield', status: 'En Route', eta: '4 mins', unit: 'Medic-42', priority: 'Critical', progress: 65, destY: 30 },
 ];
 

@@ -1,20 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Building2, User } from 'lucide-react';
 
-export interface AppointmentLocation {
-  id: number;
-  patient: string;
-  location: string;
-  mode: string;
-  x?: number;
-  y?: number;
-}
-
-interface ConsultationMapProps {
-  appointments: AppointmentLocation[];
-}
-
-export function ConsultationMap({ appointments }: ConsultationMapProps) {
+export function ConsultationMap({ appointments }) {
   const [liveAppointments, setLiveAppointments] = useState(
     appointments.filter(a => a.mode === 'In-Person' && a.x !== undefined && a.y !== undefined)
   );
@@ -26,7 +13,7 @@ export function ConsultationMap({ appointments }: ConsultationMapProps) {
         // Randomly jitter x and y by a tiny amount to simulate pacing/waiting
         const jitterX = (Math.random() - 0.5) * 2; // -1 to 1
         const jitterY = (Math.random() - 0.5) * 2; // -1 to 1
-        
+
         // Keep them within their general area
         const newX = Math.max(10, Math.min(90, (apt.x || 50) + jitterX));
         const newY = Math.max(10, Math.min(90, (apt.y || 50) + jitterY));
@@ -47,7 +34,7 @@ export function ConsultationMap({ appointments }: ConsultationMapProps) {
 
       {/* Floor Plan Elements */}
       <div className="absolute inset-8 border-4 border-slate-200 rounded-lg bg-white/50"></div>
-      
+
       {/* Main Corridor */}
       <div className="absolute top-8 bottom-8 left-1/2 w-16 bg-slate-100 border-x-2 border-slate-200 transform -translate-x-1/2 flex items-center justify-center">
         <span className="text-slate-300 font-bold tracking-[0.5em] -rotate-90 whitespace-nowrap">MAIN CORRIDOR</span>
@@ -57,7 +44,7 @@ export function ConsultationMap({ appointments }: ConsultationMapProps) {
       <div className="absolute top-16 left-16 w-48 h-32 border-2 border-slate-200 rounded-lg bg-white flex items-start justify-start p-3 shadow-sm">
         <span className="text-sm font-bold text-slate-400">Main Wing (Rooms 300-350)</span>
       </div>
-      
+
       <div className="absolute bottom-16 right-16 w-56 h-40 border-2 border-slate-200 rounded-lg bg-white flex items-start justify-start p-3 shadow-sm">
         <span className="text-sm font-bold text-slate-400">Cardiology Dept (4th Floor)</span>
       </div>
@@ -73,17 +60,17 @@ export function ConsultationMap({ appointments }: ConsultationMapProps) {
       {/* Patient Pins */}
       {liveAppointments.map((apt) => (
         <div key={apt.id} className="absolute flex flex-col items-center transition-all duration-3000 ease-in-out z-20"
-             style={{ top: `${apt.y}%`, left: `${apt.x}%`, transform: 'translate(-50%, -100%)' }}>
+          style={{ top: `${apt.y}%`, left: `${apt.x}%`, transform: 'translate(-50%, -100%)' }}>
           <div className="relative group cursor-pointer hover:scale-110 transition-transform duration-200">
             {/* Radar rings to indicate active tracking */}
             <div className="absolute -inset-4 bg-teal-400/20 rounded-full animate-ping" style={{ animationDuration: '3s' }}></div>
             <div className="absolute -inset-2 bg-teal-300/30 rounded-full animate-pulse" style={{ animationDuration: '2s' }}></div>
-            
+
             {/* Main Icon */}
             <div className="h-8 w-8 bg-white border-2 border-teal-600 rounded-full flex items-center justify-center shadow-lg relative z-10">
               <User className="h-4 w-4 text-teal-600" />
             </div>
-            
+
             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-900 text-white text-xs rounded p-3 shadow-xl z-30">
               <p className="font-bold text-sm mb-1">{apt.patient}</p>
               <p className="text-slate-300 flex items-start"><MapPin className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" /> {apt.location}</p>

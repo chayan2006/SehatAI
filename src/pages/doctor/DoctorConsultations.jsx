@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Calendar as CalendarIcon, Clock, User, Video, MapPin, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ConsultationMap, AppointmentLocation } from '@/components/ConsultationMap';
+import { ConsultationMap } from '@/components/ConsultationMap';
 
-const appointments: AppointmentLocation[] = [
+const appointments = [
   { id: 1, patient: 'John Doe', type: 'Routine Checkup', mode: 'In-Person', time: 'Today, 2:00 PM', location: 'Room 302, Main Wing', aiNotes: 'Patient blood glucose stable. Review recent lab results.', x: 25, y: 35 },
   { id: 2, patient: 'Martha Wayne', type: 'Post-op Follow-up', mode: 'Telehealth', time: 'Tomorrow, 10:30 AM', location: 'Video Call Link Sent', aiNotes: 'Recovery progressing well. No pain reported in last 48h.' },
   { id: 3, patient: 'Alice Smith', type: 'Cardiology Consult', mode: 'In-Person', time: 'Oct 24, 9:00 AM', location: 'Cardiology Dept, 4th Floor', aiNotes: 'Elevated BP detected. Missed medication for 3 days.', x: 75, y: 75 },

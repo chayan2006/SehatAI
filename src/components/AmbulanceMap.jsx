@@ -1,20 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Ambulance, Building2 } from 'lucide-react';
 
-export interface Dispatch {
-  id: number;
-  unit: string;
-  patient: string;
-  eta: string;
-  progress: number; // 0 to 100
-  destY: number; // Percentage for Y coordinate of destination (e.g., 20 or 80)
-}
-
-interface AmbulanceMapProps {
-  dispatches: Dispatch[];
-}
-
-export function AmbulanceMap({ dispatches }: AmbulanceMapProps) {
+export function AmbulanceMap({ dispatches }) {
   // Optional: Add a little animation to the progress to make it feel "live"
   const [liveDispatches, setLiveDispatches] = useState(dispatches);
 
@@ -30,14 +17,14 @@ export function AmbulanceMap({ dispatches }: AmbulanceMapProps) {
   }, [dispatches]);
 
   // Calculate position along a quadratic bezier curve
-  const getPointOnCurve = (t: number, y2: number) => {
+  const getPointOnCurve = (t, y2) => {
     const x0 = 25, y0 = 50; // Hospital (Start)
     const x1 = 50, y1 = y2; // Control point
     const x2 = 80;          // Destination (End)
-    
+
     const x = Math.pow(1 - t, 2) * x0 + 2 * (1 - t) * t * x1 + Math.pow(t, 2) * x2;
     const y = Math.pow(1 - t, 2) * y0 + 2 * (1 - t) * t * y1 + Math.pow(t, 2) * y2;
-    
+
     return { x, y };
   };
 
@@ -48,7 +35,7 @@ export function AmbulanceMap({ dispatches }: AmbulanceMapProps) {
         backgroundImage: 'linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }}></div>
-      
+
       {/* Hospital Location */}
       <div className="absolute top-1/2 left-1/4 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
         <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg z-10 border-2 border-white">
@@ -61,26 +48,26 @@ export function AmbulanceMap({ dispatches }: AmbulanceMapProps) {
       {liveDispatches.map((dispatch) => {
         const t = dispatch.progress / 100;
         const currentPos = getPointOnCurve(t, dispatch.destY);
-        
+
         return (
           <React.Fragment key={dispatch.id}>
             {/* Route Line (Background) */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              <path 
-                d={`M 25% 50% Q 50% ${dispatch.destY}% 80% ${dispatch.destY}%`} 
-                fill="none" 
-                stroke="#94a3b8" 
-                strokeWidth="4" 
-                strokeDasharray="8 8" 
+              <path
+                d={`M 25% 50% Q 50% ${dispatch.destY}% 80% ${dispatch.destY}%`}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth="4"
+                strokeDasharray="8 8"
                 className="opacity-50"
               />
               {/* Route Line (Progress) - Using a simple trick with strokeDasharray for SVG path progress isn't perfect for curves, 
                   so we'll just show the full path and let the ambulance icon show progress */}
-              <path 
-                d={`M 25% 50% Q 50% ${dispatch.destY}% 80% ${dispatch.destY}%`} 
-                fill="none" 
-                stroke="#3b82f6" 
-                strokeWidth="4" 
+              <path
+                d={`M 25% 50% Q 50% ${dispatch.destY}% 80% ${dispatch.destY}%`}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="4"
                 className="opacity-30"
               />
             </svg>
@@ -92,12 +79,12 @@ export function AmbulanceMap({ dispatches }: AmbulanceMapProps) {
             </div>
 
             {/* Ambulance Current Location */}
-            <div className="absolute flex flex-col items-center transition-all duration-1000 ease-linear z-20" 
-                 style={{ 
-                   top: `${currentPos.y}%`, 
-                   left: `${currentPos.x}%`,
-                   transform: 'translate(-50%, -50%)' 
-                 }}>
+            <div className="absolute flex flex-col items-center transition-all duration-1000 ease-linear z-20"
+              style={{
+                top: `${currentPos.y}%`,
+                left: `${currentPos.x}%`,
+                transform: 'translate(-50%, -50%)'
+              }}>
               <div className="relative">
                 {dispatch.progress < 98 && (
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

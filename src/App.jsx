@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
-import { TopNav, Role } from '@/components/TopNav';
+import { TopNav } from '@/components/TopNav';
 
 // Admin Pages
 import Dashboard from '@/pages/Dashboard';
@@ -28,7 +28,7 @@ import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
 import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
 
 export default function App() {
-  const [role, setRole] = useState<Role>('doctor');
+  const [role, setRole] = useState('doctor');
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
   const [doctorTab, setDoctorTab] = useState('triage');
@@ -90,7 +90,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50/50">
       {renderSidebar()}
-      
+
       <div className="flex-1 flex flex-col min-w-0">
         <TopNav role={role} onRoleChange={setRole} />
         <main className="flex-1 overflow-y-auto">

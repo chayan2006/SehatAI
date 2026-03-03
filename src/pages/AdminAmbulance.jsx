@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Ambulance, MapPin, Clock, AlertTriangle, Activity, PhoneCall } from 'lucide-react';
-import { AmbulanceMap, Dispatch } from '@/components/AmbulanceMap';
+import { AmbulanceMap } from '@/components/AmbulanceMap';
 
-const activeDispatches: Dispatch[] = [
+const activeDispatches = [
   { id: 1, patient: 'Eleanor Vance', location: '123 Maple St, Springfield', status: 'En Route', eta: '4 mins', unit: 'Medic-42', priority: 'Critical', progress: 65, destY: 20 },
   { id: 2, patient: 'Marcus Johnson', location: '88 Oak Ave, Springfield', status: 'On Scene', eta: 'Arrived', unit: 'Medic-17', priority: 'High', progress: 95, destY: 80 },
 ];
@@ -111,8 +111,8 @@ export default function AdminAmbulance() {
                           <Clock className="h-3 w-3 mr-1" /> ETA: {dispatch.eta}
                         </div>
                         <div className="w-full bg-slate-200 rounded-full h-1.5 max-w-[150px]">
-                          <div 
-                            className={`h-1.5 rounded-full ${dispatch.progress > 90 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
+                          <div
+                            className={`h-1.5 rounded-full ${dispatch.progress > 90 ? 'bg-emerald-500' : 'bg-blue-500'}`}
                             style={{ width: `${dispatch.progress}%` }}
                           ></div>
                         </div>
