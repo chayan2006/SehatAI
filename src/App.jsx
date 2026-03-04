@@ -3,9 +3,12 @@ import { Sidebar } from '@/components/Sidebar';
 import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
 import { TopNav } from '@/components/TopNav';
+import Login from '@/pages/Login';
+import AdminLogin from '@/pages/AdminLogin';
 
 // Admin Pages
 import Dashboard from '@/pages/Dashboard';
+import AdminDashboard from '@/pages/AdminDashboard';
 import Patients from '@/pages/Patients';
 import EmergencyAlerts from '@/pages/EmergencyAlerts';
 import AgentLogs from '@/pages/AgentLogs';
@@ -28,6 +31,8 @@ import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
 import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login'
   const [role, setRole] = useState('doctor');
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
@@ -35,7 +40,7 @@ export default function App() {
 
   const renderAdminContent = () => {
     switch (adminTab) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <AdminDashboard />;
       case 'patients': return <Patients />;
       case 'alerts': return <EmergencyAlerts />;
       case 'ambulance': return <AdminAmbulance />;
@@ -87,16 +92,32 @@ export default function App() {
     }
   };
 
-  return (
-    <div className="flex min-h-screen bg-slate-50/50">
-      {renderSidebar()}
+  if (!isAuthenticated) {
+    if (authStep === 'gateway') {
+      return (
+        <Login
+          onLogin={(selectedRole) => {
+            if (selectedRole === 'admin') {
+              setRole('admin');
+              setAuthStep('admin_login');
+            } else {
+              setRole(selectedRole);
+              setIsAuthenticated(true);
+            }
+          }}
+        />
+      );
+    }
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <TopNav role={role} onRoleChange={setRole} />
-        <main className="flex-1 overflow-y-auto">
-          {renderContent()}
-        </main>
-      </div>
-    </div>
-  );
+    if (authStep === 'admin_login') {
+      return (
+        <AdminLogin
+          onConfirm={() => setIsAuthenticated(true)}
+          onBack={() => setAuthStep('gateway')}
+        />
+      );
+    }
+  }
+
+  return <AdminDashboard />;
 }
