@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^0.2.18",
+    "@langchain/google-genai": "^0.0.12",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
@@ -20,8 +23,10 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "groq-sdk": "^0.37.0",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
+    "langchain": "^0.2.20",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
@@ -32,6 +37,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "puppeteer": "^24.38.0",
     "tailwindcss": "^4.1.14",
     "vite": "^6.2.0"
   }
