@@ -3,6 +3,10 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
+import AnalyticsView from '../components/admin/AnalyticsView';
+import ResourcesView from '../components/admin/ResourcesView';
+import StaffView from '../components/admin/StaffView';
+import AuditView from '../components/admin/AuditView';
 
 // ─── Initial Data ──────────────────────────────────────────────────────────────
 const INITIAL_ESCALATIONS = [
@@ -32,13 +36,16 @@ const NOTIFICATIONS = [
     { id: 5, icon: 'verified_user', color: '#10b77f', text: 'System security posture: 100% Secure.', time: '1h ago', read: true },
 ];
 
-// ─── Nav Items ─────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid_view' },
     { id: 'patients', label: 'Patient Monitoring', icon: 'group' },
     { id: 'agents', label: 'Agent Status', icon: 'memory' },
     { id: 'escalations', label: 'Escalations', icon: 'report_problem' },
     { id: 'security', label: 'Security', icon: 'verified_user' },
+    { id: 'analytics', label: 'Advanced Analytics', icon: 'insights' },
+    { id: 'resources', label: 'Resource Map', icon: 'map' },
+    { id: 'staff', label: 'Staff Hub', icon: 'badge' },
+    { id: 'audit', label: 'Audit Logs', icon: 'history' },
 ];
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
@@ -102,6 +109,7 @@ export default function AdminDashboard() {
     const [escalationPage, setEscalationPage] = useState(1);
     const [reviewedSecurityEvents, setReviewedSecurityEvents] = useState([]);
     const [showAdminProfile, setShowAdminProfile] = useState(false);
+    const [aiInsights, setAiInsights] = useState({}); // Stores inline AI insights for escalations
     // ── Profile page states (lifted to survive 3s re-renders) ─────────────────────
     const [profileNotifSms, setProfileNotifSms] = useState(true);
     const [profileNotifEmail, setProfileNotifEmail] = useState(false);
@@ -463,6 +471,29 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleAskAI = async (e) => {
+        if (!agentExecutor) {
+            showToast('AI Agent is booting up, please wait.', 'error');
+            return;
+        }
+        setAiInsights(prev => ({ ...prev, [e.id]: { loading: true } }));
+        try {
+            const response = await agentExecutor.invoke({
+                input: `Analyze the risk: "${e.risk}" for patient ${e.id} reported by ${e.agent} right now. Provide 3 extremely brief, actionable steps to resolve this. Keep it under 3 sentences.`,
+                chat_history: []
+            });
+            setAiInsights(prev => ({ ...prev, [e.id]: { loading: false, text: response.output } }));
+            setAuditLog(prev => [{ id: e.id, action: 'AI CRITICAL ANALYSIS', time: now(), user: 'LangChain Edge' }, ...prev]);
+        } catch (error) {
+            setAiInsights(prev => ({ ...prev, [e.id]: { loading: false, text: 'Error computing analysis.' } }));
+        }
+    };
+
+    const dispatchBroadcast = (msg, dept) => {
+        setAuditLog(prev => [{ id: `BRD-${Date.now()}`, action: 'EMERGENCY_BROADCAST', time: now(), user: profileEmail }, ...prev]);
+        showToast(`Broadcast sent to ${dept.toUpperCase()}`);
+    };
+
     // ── Close dropdowns on outside click ────────────────────────────────────────
     useEffect(() => {
         const handler = (e) => {
@@ -497,9 +528,16 @@ export default function AdminDashboard() {
             case 'escalations': return <EscalationsView />;
             case 'security': return <SecurityView />;
             case 'profile': return <ProfileView />;
+            case 'analytics': return <AnalyticsView />;
+            case 'resources': return <ResourcesView />;
+            case 'staff': return <StaffView onBroadcast={dispatchBroadcast} />;
+            case 'audit': return <AuditView liveLogs={auditLog} />;
             default: return <DashboardView />;
         }
     };
+
+    // ─── NEW EXPANSION VIEWS (Placeholders) ───────────────────────────────────────
+    // Placeholder functions removed. Components are now imported natively.
 
     // ─── DASHBOARD ────────────────────────────────────────────────────────────────
     function DashboardView() {
@@ -1589,28 +1627,62 @@ export default function AdminDashboard() {
                                 </td></tr>
                             )}
                             {rows.map(e => (
-                                <tr key={e.id} style={{ borderTop: '1px solid #f1f5f9', opacity: e.resolved ? 0.45 : 1, transition: 'opacity 0.4s' }}>
-                                    <td style={{ padding: '14px 24px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{e.id}</td>
-                                    <td style={{ padding: '14px 24px', fontSize: 14, fontWeight: 500 }}>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                            {e.severity && <span style={{ width: 8, height: 8, borderRadius: 4, background: sevColor[e.severity] || '#94a3b8', flexShrink: 0 }} />}
-                                            {e.risk}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '14px 24px' }}>
-                                        <span style={{ background: '#f1f5f9', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{e.agent}</span>
-                                    </td>
-                                    <td style={{ padding: '14px 24px', fontSize: 12, color: '#64748b' }}>{e.time}</td>
-                                    <td style={{ padding: '14px 24px', textAlign: 'right' }}>
-                                        {e.resolved
-                                            ? <span style={{ color: '#10b77f', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>Resolved</span>
-                                            : <button
-                                                onClick={() => setOverrideModal(e.id)}
-                                                style={{ padding: '6px 16px', background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer' }}
-                                            >OVERRIDE</button>
-                                        }
-                                    </td>
-                                </tr>
+                                <React.Fragment key={e.id}>
+                                    <tr style={{ borderTop: '1px solid #f1f5f9', opacity: e.resolved ? 0.45 : 1, transition: 'opacity 0.4s' }}>
+                                        <td style={{ padding: '14px 24px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{e.id}</td>
+                                        <td style={{ padding: '14px 24px', fontSize: 14, fontWeight: 500 }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                {e.severity && <span style={{ width: 8, height: 8, borderRadius: 4, background: sevColor[e.severity] || '#94a3b8', flexShrink: 0 }} />}
+                                                {e.risk}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '14px 24px' }}>
+                                            <span style={{ background: '#f1f5f9', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{e.agent}</span>
+                                        </td>
+                                        <td style={{ padding: '14px 24px', fontSize: 12, color: '#64748b' }}>{e.time}</td>
+                                        <td style={{ padding: '14px 24px', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                                            {e.resolved
+                                                ? <span style={{ color: '#10b77f', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>Resolved</span>
+                                                : <>
+                                                    <button
+                                                        onClick={() => handleAskAI(e)}
+                                                        disabled={aiInsights[e.id]?.loading}
+                                                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#fef3c7', color: '#d97706', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: aiInsights[e.id]?.loading ? 'wait' : 'pointer', opacity: aiInsights[e.id]?.loading ? 0.6 : 1 }}
+                                                    >
+                                                        {aiInsights[e.id]?.loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />} Analyze
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setOverrideModal(e.id)}
+                                                        style={{ padding: '6px 16px', background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer' }}
+                                                    >OVERRIDE</button>
+                                                </>
+                                            }
+                                        </td>
+                                    </tr>
+                                    {aiInsights[e.id]?.text && (
+                                        <tr style={{ background: '#fdfbbd1a' }}>
+                                            <td colSpan={5} style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9' }}>
+                                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', flexShrink: 0 }}>
+                                                        <Bot size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <p style={{ margin: '0 0 8px 0', fontSize: 12, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: 1 }}>AI Resolution Strategy</p>
+                                                        <p style={{ margin: 0, fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{aiInsights[e.id].text}</p>
+                                                        {!e.resolved && (
+                                                            <button
+                                                                onClick={() => handleOverride(e.id)}
+                                                                style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#10b77f', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                                            >
+                                                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>task_alt</span> Execute AI Suggestion
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>
