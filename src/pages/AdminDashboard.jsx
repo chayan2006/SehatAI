@@ -436,15 +436,17 @@ export default function AdminDashboard() {
                 const cleanText = response.output.replace(/[*_#`]/g, '');
                 const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.lang = 'en-US';
-                utterance.rate = 1.0;
+                utterance.rate = 1.05; // Slightly faster for an uplifting tone
+                utterance.pitch = 1.4; // Higher pitch for a sweeter sound
+                utterance.volume = 1.0;
 
-                // Try to grab a more natural voice if available
+                // Try to grab a sweet, female voice if available
                 const voices = window.speechSynthesis.getVoices();
                 const preferredVoice = voices.find(v =>
-                    v.name.includes('Google US English') ||
-                    v.name.includes('Samantha') ||
-                    v.name.includes('Zira') ||
-                    (v.lang === 'en-US' && v.name.includes('Female'))
+                    v.name.includes('Samantha') || // macOS natural sweet voice
+                    v.name.includes('Google UK English Female') ||
+                    v.name.includes('Microsoft Zira') || // Windows high-pitch female
+                    (v.lang.includes('en-') && v.name.includes('Female'))
                 );
                 if (preferredVoice) utterance.voice = preferredVoice;
 
