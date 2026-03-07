@@ -22,7 +22,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                         <div className="max-w-md w-full py-8 space-y-8 z-10 flex-1 flex flex-col justify-center">
                             <div className="lg:hidden flex items-center gap-3 mb-4">
                                 <span className="material-symbols-outlined text-vital-green text-4xl">shield</span>
-                                <h1 className="text-2xl font-bold text-slate-900">Aegis AI</h1>
+                                <h1 className="text-2xl font-bold text-slate-900">SehatAI</h1>
                             </div>
                             <div className="text-left">
                                 <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Admin Registration</h2>
@@ -92,7 +92,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                         </div>
 
                         <div className="w-full max-w-md pb-8 self-end text-center text-slate-300 font-bold uppercase tracking-[0.4em] text-[10px] select-none">
-                            Aegis Advanced Intelligence Protection
+                            SehatAI Advanced Intelligence Protection
                         </div>
                     </div>
 
@@ -146,7 +146,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
                                 <span className="material-symbols-outlined text-vital-green text-xl">shield</span>
                             </div>
-                            <span className="font-bold text-lg tracking-tighter">Aegis AI Admin</span>
+                            <span className="font-bold text-lg tracking-tighter">SehatAI Admin</span>
                         </div>
                     </div>
                 </div>
@@ -174,7 +174,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                         {/* Branding Mobile Only */}
                         <div className="lg:hidden flex items-center gap-3 mb-8 pt-8">
                             <span className="material-symbols-outlined text-vital-green text-4xl">shield</span>
-                            <h1 className="text-2xl font-bold text-slate-900">Aegis AI</h1>
+                            <h1 className="text-2xl font-bold text-slate-900">SehatAI</h1>
                         </div>
                         <div className="text-left">
                             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Admin Gateway</h2>
@@ -267,7 +267,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                     </div>
 
                     <div className="w-full max-w-md pb-8 self-end text-center text-slate-300 font-bold uppercase tracking-[0.4em] text-[10px] select-none">
-                        Aegis Advanced Intelligence Protection
+                        SehatAI Advanced Intelligence Protection
                     </div>
                 </div>
 
@@ -315,7 +315,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
 
                         <div className="mt-16 py-4 px-8 bg-black/10 backdrop-blur-sm rounded-full inline-flex items-center gap-3 border border-white/10">
                             <span className="flex h-2 w-2 rounded-full bg-white"></span>
-                            <span className="text-sm font-semibold tracking-wide">System Trust: Aegis AI Sentinel is actively monitoring...</span>
+                            <span className="text-sm font-semibold tracking-wide">System Trust: SehatAI Sentinel is actively monitoring...</span>
                         </div>
                     </div>
 
@@ -323,7 +323,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                         <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
                             <span className="material-symbols-outlined text-vital-green text-xl">shield</span>
                         </div>
-                        <span className="font-bold text-lg tracking-tighter">Aegis AI Admin</span>
+                        <span className="font-bold text-lg tracking-tighter">SehatAI Admin</span>
                     </div>
                 </div>
             </div>

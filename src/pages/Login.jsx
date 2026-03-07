@@ -10,7 +10,7 @@ export default function Login({ onLogin }) {
               <span className="material-symbols-outlined text-3xl">shield_with_heart</span>
             </div>
             <div>
-              <h1 className="text-slate-900 text-lg font-bold leading-tight tracking-tight">Aegis AI</h1>
+              <h1 className="text-slate-900 text-lg font-bold leading-tight tracking-tight">SehatAI</h1>
               <p className="text-[10px] uppercase tracking-widest font-semibold text-primary/80">Multi-Role Access Gateway</p>
             </div>
           </div>
@@ -31,7 +31,7 @@ export default function Login({ onLogin }) {
           <div className="max-w-5xl w-full text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">Select Your Access Point</h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Aegis AI Universal Gateway: HIPAA-Compliant Multi-Agent Health Monitoring for modern clinical workflows.
+              SehatAI Universal Gateway: HIPAA-Compliant Multi-Agent Health Monitoring for modern clinical workflows.
             </p>
           </div>
 
@@ -94,7 +94,7 @@ export default function Login({ onLogin }) {
           <div className="mt-16 flex flex-col items-center gap-4">
             <a className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2" href="#">
               <span className="material-symbols-outlined text-lg">person_add</span>
-              Create a new Aegis Account
+              Create a new SehatAI Account
             </a>
             <button className="text-slate-500 hover:text-primary text-sm font-medium transition-colors">
               Need help accessing your account?
@@ -109,7 +109,7 @@ export default function Login({ onLogin }) {
               <span>Emergency Services: If you are experiencing a medical emergency, please call 911 or your local emergency number.</span>
             </div>
             <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs text-slate-400 font-medium">
-              <span>© 2024 Aegis AI Multi-Role Access Gateway</span>
+              <span>© 2024 SehatAI Multi-Role Access Gateway</span>
               <a className="hover:text-primary" href="#">Privacy Policy</a>
               <a className="hover:text-primary" href="#">HIPAA Compliance</a>
               <a className="hover:text-primary" href="#">Terms of Service</a>

@@ -47,7 +47,7 @@ function randomDelta(val, min = -3, max = 3, lo = 0, hi = 100) {
 }
 function formatNum(n) { return n.toLocaleString(); }
 function now() { return new Date().toLocaleTimeString('en-GB', { hour12: false }) + ' GMT'; }
-function exportPDF(data, title = 'Aegis System Report') {
+function exportPDF(data, title = 'SehatAI System Report') {
     const doc = new jsPDF();
     doc.setFontSize(14);
     doc.text(title, 14, 20);
@@ -76,7 +76,7 @@ function exportPDF(data, title = 'Aegis System Report') {
         body: body,
         headStyles: { fillColor: [16, 183, 127] },
     });
-    doc.save('aegis_report.pdf');
+    doc.save('sehatai_report.pdf');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
     // ── Agent States ─────────────────────────────────────────────────────────────
     const [isAgentOpen, setIsAgentOpen] = useState(false);
     const [agentMessages, setAgentMessages] = useState([
-        { role: 'assistant', text: 'Hello Sarah. I am the Aegis Admin Assistant. How can I help you manage the system today?' }
+        { role: 'assistant', text: 'Hello Sarah. I am the SehatAI Admin Assistant. How can I help you manage the system today?' }
     ]);
     const [agentInput, setAgentInput] = useState('');
     const [isAgentTyping, setIsAgentTyping] = useState(false);
@@ -262,7 +262,7 @@ export default function AdminDashboard() {
         if (!recognitionRef.current) return;
         transcriptRef.current = '';
         setAgentInput('');
-        try { recognitionRef.current.start(); setIsListening(true); } catch (_) {}
+        try { recognitionRef.current.start(); setIsListening(true); } catch (_) { }
     };
 
     const toggleVoiceMode = () => {
@@ -1763,7 +1763,7 @@ export default function AdminDashboard() {
                                     head: ['Patient ID', 'Detected Risk', 'Agent Responsible', 'Timestamp', 'Status'],
                                     body: escalations.map(e => [e.id, e.risk, e.agent, e.time, e.resolved ? 'Resolved' : 'Active'])
                                 };
-                                exportPDF(genData, 'Aegis System Status Report');
+                                exportPDF(genData, 'SehatAI System Status Report');
                                 showToast('Report exported!');
                                 setShowSettings(false);
                             }
@@ -1877,11 +1877,11 @@ export default function AdminDashboard() {
                                     <span className="material-symbols-outlined" style={{ color: twoFAEnabled ? '#10b77f' : '#94a3b8', fontSize: 22 }}>shield_person</span>
                                     <div>
                                         <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>Two-Factor Authentication</p>
-                                        <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{twoFAEnabled ? 'Enabled via Aegis Auth App' : 'Disabled — your account is less secure'}</p>
+                                        <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{twoFAEnabled ? 'Enabled via SehatAI Auth App' : 'Disabled — your account is less secure'}</p>
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => { setTwoFAEnabled(v => !v); showToast(twoFAEnabled ? '2FA disabled. Account security reduced.' : '2FA enabled via Aegis Auth App.'); }}
+                                    onClick={() => { setTwoFAEnabled(v => !v); showToast(twoFAEnabled ? '2FA disabled. Account security reduced.' : '2FA enabled via SehatAI Auth App.'); }}
                                     style={{ padding: '5px 14px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 11, cursor: 'pointer', background: twoFAEnabled ? '#fee2e2' : '#10b77f', color: twoFAEnabled ? '#ef4444' : 'white', transition: 'all 0.2s' }}
                                 >
                                     {twoFAEnabled ? 'Disable' : 'Enable'}
@@ -2021,7 +2021,7 @@ export default function AdminDashboard() {
 
                 {/* ── Footer ── */}
                 <div style={{ paddingTop: 24, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>&copy; 2024 Aegis AI Systems. All medical data is end-to-end encrypted.</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>&copy; 2024 SehatAI Systems. All medical data is end-to-end encrypted.</p>
                     <button onClick={() => showToast('Account deactivation requires admin approval.', 'info')} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#f43f5e', background: 'none', border: 'none', cursor: 'pointer' }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 14 }}>no_accounts</span>Deactivate Institutional Account
                     </button>
@@ -2058,7 +2058,7 @@ export default function AdminDashboard() {
                         <span className="material-symbols-outlined">shield_with_heart</span>
                     </div>
                     <div>
-                        <h1 style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2 }}>Aegis AI</h1>
+                        <h1 style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2 }}>SehatAI</h1>
                         <p style={{ fontSize: 11, color: '#10b77f', fontWeight: 600, marginTop: 2 }}>Health Monitoring</p>
                     </div>
                 </div>
@@ -2151,7 +2151,7 @@ export default function AdminDashboard() {
                                     <Bot size={18} />
                                 </div>
                                 <div>
-                                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Aegis Assistant</h4>
+                                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>SehatAI Assistant</h4>
                                     <span style={{ fontSize: 10, opacity: 0.8 }}>Powered by Gemini 1.5 Pro</span>
                                 </div>
                             </div>
@@ -2181,7 +2181,7 @@ export default function AdminDashboard() {
                             {isAgentTyping && (
                                 <div style={{ alignSelf: 'flex-start', background: 'white', padding: '10px 14px', borderRadius: '16px 16px 16px 2px', border: '1px solid #e2e8f0', display: 'flex', gap: 4 }}>
                                     <Loader2 size={14} className="animate-spin" style={{ color: '#10b77f' }} />
-                                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Aegis is thinking...</span>
+                                    <span style={{ fontSize: 12, color: '#94a3b8' }}>SehatAI is thinking...</span>
                                 </div>
                             )}
                             <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
@@ -2232,7 +2232,7 @@ export default function AdminDashboard() {
                             <input
                                 value={agentInput}
                                 onChange={(e) => setAgentInput(e.target.value)}
-                                placeholder={isListening ? 'Listening... speak now' : voiceMode ? 'Voice active — or type' : 'Ask Aegis to do something...'}
+                                placeholder={isListening ? 'Listening... speak now' : voiceMode ? 'Voice active — or type' : 'Ask SehatAI to do something...'}
                                 style={{ flex: 1, border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 14px', fontSize: 13, outline: 'none' }}
                             />
                             <button
