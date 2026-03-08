@@ -85,7 +85,7 @@ export default function DoctorAmbulance() {
                   </div>
                   <div className="flex items-center space-x-4">
                     <Badge variant="secondary" className="text-xs px-2 py-0.5">Resolved</Badge>
-                    <Button variant="ghost" size="sm" className="text-teal-600">View Report</Button>
+                    <Button variant="ghost" size="sm" className="text-primary">View Report</Button>
                   </div>
                 </div>
               </div>
