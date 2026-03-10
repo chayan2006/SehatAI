@@ -23,7 +23,7 @@ export default function DoctorTriage() {
           Emergency Triage & AI Escalations
         </h2>
         <div className="flex space-x-2">
-          <Button variant="outline" className="border-teal-200 text-teal-700 hover:bg-teal-50">
+          <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
             <Activity className="mr-2 h-4 w-4" /> Live Vitals Stream
           </Button>
         </div>
@@ -97,7 +97,7 @@ export default function DoctorTriage() {
                   <p className="text-sm text-amber-900">{escalation.aiAction}</p>
                 </div>
                 <div className="flex space-x-2">
-                  <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Approve & Schedule</Button>
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-white">Approve & Schedule</Button>
                   <Button variant="outline" className="w-full text-slate-600">Dismiss</Button>
                 </div>
               </CardContent>

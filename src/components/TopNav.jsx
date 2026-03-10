@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, UserCircle, ShieldAlert, User, Stethoscope, X, Check, Activity, Pill, Calendar, AlertTriangle } from 'lucide-react';
+import { Bell, Search, UserCircle, ShieldAlert, User, Stethoscope, X, Check, Activity, Pill, Calendar, AlertTriangle, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-export function TopNav({ role, onRoleChange }) {
+export function TopNav({ role, onRoleChange, onLogout }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const dropdownRef = useRef(null);
+  const profileRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowNotifications(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -34,7 +39,7 @@ export function TopNav({ role, onRoleChange }) {
         };
       case 'doctor':
         return {
-          className: "text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100",
+          className: "text-primary border-primary/30 bg-primary/10 hover:bg-primary/20",
           icon: <Stethoscope className="mr-2 h-4 w-4" />,
           text: "Switch Role (Doctor)"
         };
@@ -56,7 +61,7 @@ export function TopNav({ role, onRoleChange }) {
   const doctorNotifications = [
     { id: 1, title: 'Critical Alert', message: 'Eleanor Vance HR > 110 bpm. Ambulance dispatched.', time: 'Just now', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-100', unread: true },
     { id: 2, title: 'AI Escalation', message: 'Alice Smith missed medication for 3 consecutive days.', time: '1 hour ago', icon: Activity, color: 'text-amber-600', bg: 'bg-amber-100', unread: true },
-    { id: 3, title: 'New Consultation', message: 'John Doe booked a routine checkup for today.', time: '3 hours ago', icon: Calendar, color: 'text-teal-600', bg: 'bg-teal-100', unread: false },
+    { id: 3, title: 'New Consultation', message: 'John Doe booked a routine checkup for today.', time: '3 hours ago', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10', unread: false },
   ];
 
   const adminNotifications = [
@@ -76,10 +81,16 @@ export function TopNav({ role, onRoleChange }) {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <Input
             type="search"
-            placeholder={role === 'patient' ? "Search health records..." : "Search patients, alerts, or agents..."}
+            placeholder={role === 'patient' ? "Search health records..." : "Search patients, staff, or records..."}
             className="w-full pl-9 bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
           />
         </div>
+        {role === 'admin' && (
+           <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-emerald-100 rounded-full ml-4 whitespace-nowrap">
+              <ShieldAlert className="text-emerald-700 h-3 w-3" />
+              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">HIPAA Secure</span>
+           </div>
+        )}
       </div>
       <div className="flex items-center space-x-4">
         <Button
@@ -155,16 +166,64 @@ export function TopNav({ role, onRoleChange }) {
           )}
         </div>
 
-        <div className="flex items-center space-x-2 border-l pl-4">
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-medium leading-none">
-              {role === 'patient' ? 'Eleanor Vance' : 'Dr. Sarah Jenkins'}
-            </p>
-            <p className="text-xs text-slate-500">
-              {role === 'admin' ? 'System Administrator' : role === 'doctor' ? 'Chief Medical Officer' : 'Patient'}
-            </p>
+        <div className="flex items-center space-x-2 border-l pl-4" ref={profileRef}>
+          {/* Admin Specific Action Bar */}
+          {role === 'admin' && (
+            <div className="hidden lg:flex items-center gap-4 mr-4 pr-4 border-r border-slate-200">
+               <div className="flex items-center gap-2 text-slate-500">
+                  <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                  <span className="text-xs font-medium">System: Optimal</span>
+               </div>
+               <Button className="bg-red-500 hover:bg-red-600 text-white h-8 text-xs font-bold px-3 py-1 flex items-center gap-1 transition-colors">
+                  <ShieldAlert className="h-3 w-3" />
+                  EMERGENCY
+               </Button>
+            </div>
+          )}
+
+          <div 
+            className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+          >
+            <div className="text-right hidden md:block">
+              <p className="text-sm font-medium leading-none">
+                {role === 'patient' ? 'Eleanor Vance' : 'Dr. Sarah Jenkins'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {role === 'admin' ? 'System Administrator' : role === 'doctor' ? 'Chief Medical Officer' : 'Patient'}
+              </p>
+            </div>
+            <UserCircle className="h-8 w-8 text-slate-400" />
           </div>
-          <UserCircle className="h-8 w-8 text-slate-400" />
+
+          {/* Profile Dropdown Menu */}
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 md:hidden">
+                <p className="text-sm font-medium leading-none">
+                  {role === 'patient' ? 'Eleanor Vance' : 'Dr. Sarah Jenkins'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {role === 'admin' ? 'System Administrator' : role === 'doctor' ? 'Chief Medical Officer' : 'Patient'}
+                </p>
+              </div>
+              <div className="p-2">
+                {onLogout && (
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => {
+                        setShowProfileMenu(false);
+                        onLogout();
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

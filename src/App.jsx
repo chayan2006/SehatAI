@@ -4,6 +4,7 @@ import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
 import { TopNav } from '@/components/TopNav';
 import Login from '@/pages/Login';
+import PortalLogin from '@/pages/PortalLogin';
 import AdminLogin from '@/pages/AdminLogin';
 
 // Admin Pages
@@ -27,16 +28,18 @@ import PatientAmbulance from '@/pages/patient/PatientAmbulance';
 // Doctor Pages
 import DoctorTriage from '@/pages/doctor/DoctorTriage';
 import DoctorPatients from '@/pages/doctor/DoctorPatients';
+import DoctorStaff from '@/pages/doctor/DoctorStaff';
 import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
 import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login'
+  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login' | 'portal_login'
+  const [loginRole, setLoginRole] = useState('doctor');
   const [role, setRole] = useState('doctor');
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
-  const [doctorTab, setDoctorTab] = useState('triage');
+  const [doctorTab, setDoctorTab] = useState('dashboard');
 
   const renderAdminContent = () => {
     switch (adminTab) {
@@ -66,13 +69,15 @@ export default function App() {
 
   const renderDoctorContent = () => {
     switch (doctorTab) {
+      case 'dashboard': return <AdminDashboard />;
       case 'triage': return <DoctorTriage />;
       case 'patients': return <DoctorPatients />;
+      case 'staff': return <DoctorStaff />;
       case 'consultations': return <DoctorConsultations />;
       case 'ambulance': return <DoctorAmbulance />;
       case 'ai-insights': return <AgentLogs />; // Reusing agent logs for AI insights
       case 'settings': return <Settings />; // Reusing settings
-      default: return <DoctorTriage />;
+      default: return <AdminDashboard />;
     }
   };
 
@@ -101,6 +106,25 @@ export default function App() {
               setRole('admin');
               setAuthStep('admin_login');
             } else {
+              setLoginRole(selectedRole);
+              setAuthStep('portal_login');
+            }
+          }}
+        />
+      );
+    }
+
+    if (authStep === 'portal_login') {
+      return (
+        <PortalLogin
+          initialRole={loginRole}
+          onLogin={(selectedRole) => {
+            if (selectedRole === 'gateway_back') {
+              setAuthStep('gateway');
+            } else if (selectedRole === 'admin') {
+              setRole('admin');
+              setAuthStep('admin_login');
+            } else {
               setRole(selectedRole);
               setIsAuthenticated(true);
             }
@@ -119,5 +143,21 @@ export default function App() {
     }
   }
 
-  return <AdminDashboard />;
+  return (
+    <div className="flex h-screen bg-background-light font-display">
+      {renderSidebar()}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <TopNav 
+          role={role} 
+          onLogout={() => {
+            setIsAuthenticated(false);
+            setAuthStep('gateway');
+          }} 
+        />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background-light p-4 md:p-6 lg:p-8">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
 }

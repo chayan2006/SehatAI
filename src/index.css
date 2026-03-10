@@ -5,20 +5,20 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-satoshi: "Satoshi", ui-sans-serif, system-ui, sans-serif;
-  --color-primary: #10b77f;
-  --color-background-light: #f6f8f7;
-  --color-background-dark: #10221c;
-  --color-vital-green: #10B981;
-  --color-professional-teal: #0D9488;
+  --color-primary: #00b289;
+  --color-background-light: #f5f8f8;
+  --color-background-dark: #0f231f;
+  --color-vital-green: #00b289;
+  --color-professional-teal: #00a07a;
   --color-security-slate: #475569;
-  --color-emergency-red: #EF4444;
+  --color-emergency-red: #ef4444;
 }
 
-@layer base {
-  body {
-    font-family: var(--font-sans);
-    color: #0f172a;
-  }
+@custom-variant dark (&:where(.dark, .dark *));
+
+body {
+  font-family: var(--font-sans);
+  color: #0f172a;
 }
 
 @utility medical-pulse-bg {
