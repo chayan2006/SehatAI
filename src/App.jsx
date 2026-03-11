@@ -152,16 +152,27 @@ export default function App() {
     }
   }
 
+  if (role === 'admin' || role === 'doctor') {
+    return <AdminDashboard 
+      role={role} 
+      onRoleChange={(r) => setRole(r)} 
+      onLogout={() => {
+        setIsAuthenticated(false);
+        setAuthStep('gateway');
+      }} 
+    />;
+  }
+
   return (
     <div className="flex h-screen bg-background-light font-display">
       {renderSidebar()}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <TopNav
-          role={role}
+        <TopNav 
+          role={role} 
           onLogout={() => {
             setIsAuthenticated(false);
             setAuthStep('gateway');
-          }}
+          }} 
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background-light p-4 md:p-6 lg:p-8">
           {renderContent()}

@@ -8,6 +8,15 @@ import ResourcesView from '../components/admin/ResourcesView';
 import StaffView from '../components/admin/StaffView';
 import AuditView from '../components/admin/AuditView';
 import HospitalView from '../components/admin/HospitalView';
+import DoctorPatients from './doctor/DoctorPatients';
+import DoctorStaff from './doctor/DoctorStaff';
+import DoctorWard from './doctor/DoctorWard';
+import DoctorPharmacy from './doctor/DoctorPharmacy';
+import DoctorBilling from './doctor/DoctorBilling';
+import DoctorAmbulance from './doctor/DoctorAmbulance';
+import DoctorVitals from './doctor/DoctorVitals';
+import DoctorTriage from './doctor/DoctorTriage';
+import DoctorConsultations from './doctor/DoctorConsultations';
 
 // ─── Initial Data ──────────────────────────────────────────────────────────────
 const INITIAL_ESCALATIONS = [
@@ -37,17 +46,30 @@ const NOTIFICATIONS = [
     { id: 5, icon: 'verified_user', color: '#10b77f', text: 'System security posture: 100% Secure.', time: '1h ago', read: true },
 ];
 
+// ─── Nav Items ─────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid_view' },
-    { id: 'patients', label: 'Patient Monitoring', icon: 'group' },
-    { id: 'agents', label: 'Agent Status', icon: 'memory' },
-    { id: 'escalations', label: 'Escalations', icon: 'report_problem' },
-    { id: 'security', label: 'Security', icon: 'verified_user' },
-    { id: 'analytics', label: 'Advanced Analytics', icon: 'insights' },
-    { id: 'resources', label: 'Resource Map', icon: 'map' },
-    { id: 'staff', label: 'Staff Hub', icon: 'badge' },
-    { id: 'audit', label: 'Audit Logs', icon: 'history' },
-    { id: 'hospital', label: 'Hospital Map', icon: 'local_hospital' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid_view', roles: ['admin'] },
+    { id: 'patients', label: 'Patient Monitoring', icon: 'group', roles: ['admin'] },
+    { id: 'staff', label: 'Staff Hub', icon: 'badge', roles: ['admin'] },
+    { id: 'hospital', label: 'Hospital Map', icon: 'local_hospital', roles: ['admin', 'doctor'] },
+    { id: 'escalations', label: 'Escalations', icon: 'report_problem', roles: ['admin'] },
+    { id: 'analytics', label: 'Advanced Analytics', icon: 'insights', roles: ['admin'] },
+    { id: 'resources', label: 'Resource Map', icon: 'map', roles: ['admin'] },
+    { id: 'pharmacy', label: 'Pharmacy', icon: 'pill', roles: ['admin', 'doctor'] },
+    { id: 'lab', label: 'Laboratory', icon: 'flask', roles: ['admin'] },
+    { id: 'billing', label: 'Billing & Finance', icon: 'payments', roles: ['admin', 'doctor'] },
+    { id: 'audit', label: 'Audit Logs', icon: 'history', roles: ['admin'] },
+    { id: 'security', label: 'Security', icon: 'verified_user', roles: ['admin'] },
+    { id: 'agents', label: 'Agent Status', icon: 'memory', roles: ['admin'] },
+    
+    // Doctor Specific Items
+    { id: 'doctor_patients', label: 'My Patients', icon: 'personal_injury', roles: ['doctor'] },
+    { id: 'doctor_ward', label: 'Ward Status', icon: 'bed', roles: ['doctor'] },
+    { id: 'doctor_vitals', label: 'Live Vitals', icon: 'vital_signs', roles: ['doctor'] },
+    { id: 'doctor_triage', label: 'Triage Queue', icon: 'priority', roles: ['doctor'] },
+    { id: 'doctor_consults', label: 'Consultations', icon: 'chat', roles: ['doctor'] },
+    { id: 'doctor_ambulance', label: 'Ambulance Feed', icon: 'ambulance', roles: ['doctor'] },
+    { id: 'doctor_staff', label: 'Staff Directory', icon: 'badge', roles: ['doctor'] },
 ];
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
@@ -89,8 +111,8 @@ function exportPDF(data, title = 'SehatAI System Report') {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function AdminDashboard() {
-    const [activeNav, setActiveNav] = useState('dashboard');
+export default function AdminDashboard({ role = 'admin', onRoleChange, onLogout }) {
+  const [activeNav, setActiveNav] = useState(role === 'doctor' ? 'hospital' : 'dashboard');
     const [escalations, setEscalations] = useState(INITIAL_ESCALATIONS);
     const [agents, setAgents] = useState(INITIAL_AGENTS);
     const [patientCount, setPatientCount] = useState(1284);
@@ -117,8 +139,8 @@ export default function AdminDashboard() {
     const [profileNotifEmail, setProfileNotifEmail] = useState(false);
     const [profileNotifPush, setProfileNotifPush] = useState(true);
     const [profileEditMode, setProfileEditMode] = useState(false);
-    const [profileRole, setProfileRole] = useState('Chief AI Architect');
-    const [profileEmail, setProfileEmail] = useState('s.chen@st-jude.health.ai');
+    const [profileRole, setProfileRole] = useState(role === 'admin' ? 'System Administrator' : 'Chief Medical Officer');
+    const [profileEmail, setProfileEmail] = useState('s.jenkins@st-jude.health.ai');
     const [profilePhone, setProfilePhone] = useState('+1 (555) 942-0192');
     const [showHardwareKeys, setShowHardwareKeys] = useState(false);
     const [twoFAEnabled, setTwoFAEnabled] = useState(true);
@@ -139,19 +161,17 @@ export default function AdminDashboard() {
     // ── Agent States ─────────────────────────────────────────────────────────────
     const [isAgentOpen, setIsAgentOpen] = useState(false);
     const [agentMessages, setAgentMessages] = useState([
-        { role: 'assistant', text: 'Hello Sarah. I am the SehatAI Admin Assistant. How can I help you manage the system today?' }
+        { role: 'assistant', text: `Hello Dr. Jenkins. I am the SehatAI Admin Assistant. How can I help you manage the system today?` }
     ]);
     const [agentInput, setAgentInput] = useState('');
     const [isAgentTyping, setIsAgentTyping] = useState(false);
     const [agentExecutor, setAgentExecutor] = useState(null);
     const [isListening, setIsListening] = useState(false);
     const [voiceMode, setVoiceMode] = useState(false);
-    const [voiceLang, setVoiceLang] = useState('hi-IN'); // Default to Hindi/India region
     const recognitionRef = useRef(null);
-    const handleMessageRef = useRef(null);
-    const voiceModeRef = useRef(false);
-    const voiceLangRef = useRef('hi-IN'); // mirrors voiceLang for use in closures
-    const transcriptRef = useRef('');
+    const handleMessageRef = useRef(null); // always points to latest handleAgentMessage
+    const voiceModeRef = useRef(false); // ref version to avoid stale closures inside callbacks
+    const transcriptRef = useRef('');   // captures transcript for auto-submit inside onend
 
     const notifRef = useRef(null);
     const settingsRef = useRef(null);
@@ -165,7 +185,7 @@ export default function AdminDashboard() {
     // ── Override handler ─────────────────────────────────────────────────────────
     const handleOverride = (id) => {
         setEscalations(prev => prev.map(e => e.id === id ? { ...e, resolved: true } : e));
-        setAuditLog(prev => [{ id, action: 'OVERRIDE', time: now(), user: 'Dr. Sarah Chen' }, ...prev]);
+        setAuditLog(prev => [{ id, action: 'OVERRIDE', time: now(), user: 'Dr. Sarah Jenkins' }, ...prev]);
         setOverrideModal(null);
         showToast(`Escalation ${id} overridden and resolved.`);
         setNotifications(prev => [{
@@ -235,7 +255,7 @@ export default function AdminDashboard() {
         const r = new SR();
         r.continuous = false;
         r.interimResults = true;
-        r.lang = voiceLang; // Bound to state
+        r.lang = 'en-US';
         r.onresult = (e) => {
             let t = '';
             for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
@@ -257,19 +277,18 @@ export default function AdminDashboard() {
             }
         };
         recognitionRef.current = r;
-    }, [voiceLang]); // Re-initialize STT if language changes
+    }, []); // eslint-disable-line
 
-    // Keep voiceModeRef + voiceLangRef in sync with their state counterparts
+    // Keep voiceModeRef in sync with voiceMode state
     useEffect(() => {
         voiceModeRef.current = voiceMode;
-        voiceLangRef.current = voiceLang;
         if (!voiceMode) {
             recognitionRef.current?.stop();
             window.speechSynthesis?.cancel();
             setIsListening(false);
             setAgentInput('');
         }
-    }, [voiceMode, voiceLang]);
+    }, [voiceMode]);
 
     const startListeningOnce = () => {
         if (!recognitionRef.current) return;
@@ -281,25 +300,11 @@ export default function AdminDashboard() {
     const toggleVoiceMode = () => {
         if (voiceMode) {
             setVoiceMode(false);
-            window.speechSynthesis?.cancel();
             showToast('Voice chat ended.', 'info');
         } else {
             if (!recognitionRef.current) { showToast('Voice not supported in this browser.', 'error'); return; }
             setVoiceMode(true);
             showToast('Voice chat started! Say something…', 'success');
-
-            // ── Chrome TTS Unlock ──────────────────────────────────────────────────
-            // Chrome blocks speechSynthesis.speak() inside async callbacks unless
-            // the audio context is first "unlocked" by a direct user gesture.
-            // Speaking a near-silent utterance RIGHT NOW (inside this click handler)
-            // unlocks TTS for the entire session, allowing the AI response to speak.
-            if ('speechSynthesis' in window) {
-                const warmup = new SpeechSynthesisUtterance(' ');
-                warmup.volume = 0.01; // nearly silent
-                warmup.rate = 10;     // instant
-                window.speechSynthesis.speak(warmup);
-            }
-
             setTimeout(() => startListeningOnce(), 300);
         }
     };
@@ -457,44 +462,29 @@ export default function AdminDashboard() {
             setAgentMessages(prev => [...prev, { role: 'assistant', text: response.output }]);
 
             // ── Text-to-Speech (TTS) ──
-            if (voiceModeRef.current && 'speechSynthesis' in window) {
-                const cleanText = response.output.replace(/[*_#`]/g, '').slice(0, 400);
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Stop current speech if any
+                // Clean up markdown characters so it sounds natural
+                const cleanText = response.output.replace(/[*_#`]/g, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.lang = 'en-US';
+                utterance.rate = 1.05; // Slightly faster for an uplifting tone
+                utterance.pitch = 1.4; // Higher pitch for a sweeter sound
+                utterance.volume = 1.0;
 
-                // Delay slightly so Chrome's internal state settles after the LLM response
-                setTimeout(() => {
-                    try {
-                        window.speechSynthesis.cancel(); // clear any leftover queue
+                // Try to grab a sweet, female voice if available
+                const voices = window.speechSynthesis.getVoices();
+                const preferredVoice = voices.find(v =>
+                    v.name.includes('Samantha') || // macOS natural sweet voice
+                    v.name.includes('Google UK English Female') ||
+                    v.name.includes('Microsoft Zira') || // Windows high-pitch female
+                    (v.lang.includes('en-') && v.name.includes('Female'))
+                );
+                if (preferredVoice) utterance.voice = preferredVoice;
 
-                        const utterance = new SpeechSynthesisUtterance(cleanText);
-                        utterance.rate = 1.0;
-                        utterance.pitch = 1.2;
-                        utterance.volume = 1.0;
-
-                        // Try to pick a nice voice — but don't block speaking if none found
-                        const voices = window.speechSynthesis.getVoices();
-                        const lang = voiceLangRef.current;
-                        const pick = lang !== 'en-US'
-                            ? voices.find(v => v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Lekha') || v.lang === 'hi-IN' || v.lang === 'en-IN')
-                            : voices.find(v => v.name.includes('Zira') || v.name.includes('Samantha') || v.lang === 'en-US');
-
-                        if (pick) {
-                            utterance.voice = pick;
-                            utterance.lang = pick.lang;
-                        }
-                        // If no pick — let browser use its own default. ALWAYS speak.
-
-                        utterance.onstart = () => console.log('[TTS ✓] Speaking with voice:', utterance.voice?.name || 'browser default');
-                        utterance.onerror = (e) => { console.error('[TTS ✗] Error:', e.error); if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
-                        utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
-
-                        window.speechSynthesis.speak(utterance);
-                    } catch (err) {
-                        console.error('[TTS] Exception:', err);
-                        if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400);
-                    }
-                }, 150);
-            } else if (voiceModeRef.current) {
-                setTimeout(() => startListeningOnce(), 400);
+                // Restart mic after AI finishes speaking (2-way loop)
+                utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
+                window.speechSynthesis.speak(utterance);
             }
 
         } catch (error) {
@@ -555,24 +545,43 @@ export default function AdminDashboard() {
 
     // ─── Render Page Content ──────────────────────────────────────────────────────
     const renderContent = () => {
+        // Shared Views
+        if (activeNav === 'profile') return <ProfileView />;
+        if (activeNav === 'hospital') return <HospitalView />;
+
+        // Role-Based Views
+        if (role === 'doctor') {
+            switch (activeNav) {
+                case 'doctor_patients': return <DoctorPatients />;
+                case 'doctor_staff': return <DoctorStaff />;
+                case 'doctor_ward': return <DoctorWard />;
+                case 'pharmacy': return <DoctorPharmacy />;
+                case 'billing': return <DoctorBilling />;
+                case 'doctor_vitals': return <DoctorVitals />;
+                case 'doctor_triage': return <DoctorTriage />;
+                case 'doctor_consults': return <DoctorConsultations />;
+                case 'doctor_ambulance': return <DoctorAmbulance />;
+                default: return <HospitalView />;
+            }
+        }
+
+        // Admin Views
         switch (activeNav) {
             case 'dashboard': return <DashboardView />;
             case 'patients': return <PatientMonitoringView />;
             case 'agents': return <AgentStatusView />;
             case 'escalations': return <EscalationsView />;
             case 'security': return <SecurityView />;
-            case 'profile': return <ProfileView />;
             case 'analytics': return <AnalyticsView />;
             case 'resources': return <ResourcesView />;
             case 'staff': return <StaffView onBroadcast={dispatchBroadcast} />;
             case 'audit': return <AuditView liveLogs={auditLog} />;
-            case 'hospital': return <HospitalView />;
+            case 'pharmacy': return <div className="p-8 text-slate-500 font-medium">Pharmacy Management System - Live Status: Operational</div>;
+            case 'billing': return <div className="p-8 text-slate-500 font-medium">Financial & Billing Overview - Secure Pipeline Active</div>;
+            case 'lab': return <div className="p-8 text-slate-500 font-medium">Laboratory & Diagnostic Hub - All Systems Normal</div>;
             default: return <DashboardView />;
         }
     };
-
-    // ─── NEW EXPANSION VIEWS (Placeholders) ───────────────────────────────────────
-    // Placeholder functions removed. Components are now imported natively.
 
     // ─── DASHBOARD ────────────────────────────────────────────────────────────────
     function DashboardView() {
@@ -719,13 +728,13 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <h2 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>System Pulse Overview</h2>
+                            <h2 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Acute Patient Monitoring</h2>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', background: '#ecfdf5', color: '#059669', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', borderRadius: 20, letterSpacing: 2 }}>
                                 <span className="vital-pulse" />
                                 Live Heartbeat: Active
                             </span>
                         </div>
-                        <p style={{ color: '#64748b', margin: 0 }}>HIPAA Compliant Real-time Telemetry Dashboard</p>
+                        <p style={{ color: '#64748b', margin: 0 }}>Real-time telemetry and critical risk assessment for all active patient nodes.</p>
                     </div>
                     <button
                         onClick={() => {
@@ -747,7 +756,7 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
                     <div style={{ background: 'white', padding: 24, borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <p style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>Active Patient Monitoring</p>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>Total Patients Tracked</p>
                             <h3 style={{ fontSize: 32, fontWeight: 700, margin: '4px 0' }}>{formatNum(patientCount)}</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b77f', marginTop: 8 }}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>trending_up</span>
@@ -1662,62 +1671,28 @@ export default function AdminDashboard() {
                                 </td></tr>
                             )}
                             {rows.map(e => (
-                                <React.Fragment key={e.id}>
-                                    <tr style={{ borderTop: '1px solid #f1f5f9', opacity: e.resolved ? 0.45 : 1, transition: 'opacity 0.4s' }}>
-                                        <td style={{ padding: '14px 24px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{e.id}</td>
-                                        <td style={{ padding: '14px 24px', fontSize: 14, fontWeight: 500 }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                {e.severity && <span style={{ width: 8, height: 8, borderRadius: 4, background: sevColor[e.severity] || '#94a3b8', flexShrink: 0 }} />}
-                                                {e.risk}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '14px 24px' }}>
-                                            <span style={{ background: '#f1f5f9', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{e.agent}</span>
-                                        </td>
-                                        <td style={{ padding: '14px 24px', fontSize: 12, color: '#64748b' }}>{e.time}</td>
-                                        <td style={{ padding: '14px 24px', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                                            {e.resolved
-                                                ? <span style={{ color: '#10b77f', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>Resolved</span>
-                                                : <>
-                                                    <button
-                                                        onClick={() => handleAskAI(e)}
-                                                        disabled={aiInsights[e.id]?.loading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: '#fef3c7', color: '#d97706', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: aiInsights[e.id]?.loading ? 'wait' : 'pointer', opacity: aiInsights[e.id]?.loading ? 0.6 : 1 }}
-                                                    >
-                                                        {aiInsights[e.id]?.loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />} Analyze
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setOverrideModal(e.id)}
-                                                        style={{ padding: '6px 16px', background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer' }}
-                                                    >OVERRIDE</button>
-                                                </>
-                                            }
-                                        </td>
-                                    </tr>
-                                    {aiInsights[e.id]?.text && (
-                                        <tr style={{ background: '#fdfbbd1a' }}>
-                                            <td colSpan={5} style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9' }}>
-                                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', flexShrink: 0 }}>
-                                                        <Bot size={16} />
-                                                    </div>
-                                                    <div>
-                                                        <p style={{ margin: '0 0 8px 0', fontSize: 12, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: 1 }}>AI Resolution Strategy</p>
-                                                        <p style={{ margin: 0, fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{aiInsights[e.id].text}</p>
-                                                        {!e.resolved && (
-                                                            <button
-                                                                onClick={() => handleOverride(e.id)}
-                                                                style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#10b77f', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                                                            >
-                                                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>task_alt</span> Execute AI Suggestion
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
+                                <tr key={e.id} style={{ borderTop: '1px solid #f1f5f9', opacity: e.resolved ? 0.45 : 1, transition: 'opacity 0.4s' }}>
+                                    <td style={{ padding: '14px 24px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{e.id}</td>
+                                    <td style={{ padding: '14px 24px', fontSize: 14, fontWeight: 500 }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            {e.severity && <span style={{ width: 8, height: 8, borderRadius: 4, background: sevColor[e.severity] || '#94a3b8', flexShrink: 0 }} />}
+                                            {e.risk}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '14px 24px' }}>
+                                        <span style={{ background: '#f1f5f9', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{e.agent}</span>
+                                    </td>
+                                    <td style={{ padding: '14px 24px', fontSize: 12, color: '#64748b' }}>{e.time}</td>
+                                    <td style={{ padding: '14px 24px', textAlign: 'right' }}>
+                                        {e.resolved
+                                            ? <span style={{ color: '#10b77f', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>Resolved</span>
+                                            : <button
+                                                onClick={() => setOverrideModal(e.id)}
+                                                style={{ padding: '6px 16px', background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer' }}
+                                            >OVERRIDE</button>
+                                        }
+                                    </td>
+                                </tr>
                             ))}
                         </tbody>
                     </table>
@@ -1909,6 +1884,11 @@ export default function AdminDashboard() {
 
         return (
             <div style={{ padding: 32, maxWidth: 900, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Page Header */}
+                <div style={{ marginBottom: 8 }}>
+                    <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 8px 0' }}>Institutional Profile & Security</h1>
+                    <p style={{ color: '#64748b', margin: 0, fontWeight: 500 }}>Manage your professional credentials, HIPAA compliance settings, and security keys.</p>
+                </div>
 
                 {/* ── 1. Profile Identity Card ── */}
                 <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -1925,7 +1905,7 @@ export default function AdminDashboard() {
                         {/* Info */}
                         <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                                <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Dr. Sarah Chen</h2>
+                                <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Dr. Sarah Jenkins</h2>
                                 <span style={{ padding: '2px 10px', background: '#ecfdf5', color: '#10b77f', fontSize: 10, fontWeight: 700, borderRadius: 20, textTransform: 'uppercase', letterSpacing: 2, border: '1px solid rgba(16,183,127,0.2)' }}>Active</span>
                             </div>
                             <p style={{ color: '#64748b', margin: '0 0 14px', fontSize: 14 }}>Chief AI Architect</p>
@@ -2173,7 +2153,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <nav style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {NAV_ITEMS.map(item => {
+                    {NAV_ITEMS.filter(item => item.roles.includes(role)).map(item => {
                         const active = activeNav === item.id;
                         const hasBadge = item.id === 'escalations' && criticalCount > 0;
                         return (
@@ -2196,10 +2176,10 @@ export default function AdminDashboard() {
                             <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#64748b' }}>person</span>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dr. Sarah Chen</p>
-                            <p style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Sr. AI Architect</p>
+                            <p style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dr. Sarah Jenkins</p>
+                            <p style={{ fontSize: 10, color: '#10b77f', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>{role === 'admin' ? 'System Admin' : 'Chief Medical Officer'}</p>
                         </div>
-                        <button onClick={() => window.location.reload()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Sign out">
+                        <button onClick={() => onLogout?.()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Sign out">
                             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
                         </button>
                     </div>
@@ -2210,39 +2190,41 @@ export default function AdminDashboard() {
             <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto', background: '#f8fafc' }}>
                 {/* Header */}
                 <header style={{ height: 64, flexShrink: 0, borderBottom: '1px solid #f1f5f9', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'sticky', top: 0, zIndex: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                        <h2 style={{ fontSize: 16, fontWeight: 700 }}>
-                            {NAV_ITEMS.find(n => n.id === activeNav)?.label || 'Admin Pulse Overview'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 24, flex: 1 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, minWidth: 150 }}>
+                            {NAV_ITEMS.find(n => n.id === activeNav)?.label || 'Dashboard'}
                         </h2>
-                        <nav style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                            {(
-                                activeNav === 'dashboard' ? [['Systems', 'agents'], ['Reports', 'dashboard'], ['Audit Logs', 'escalations']] :
-                                    activeNav === 'patients' ? [['Overview', 'dashboard'], ['Systems', 'agents'], ['Audit Logs', 'escalations']] :
-                                        activeNav === 'agents' ? [['Systems', 'agents'], ['Reports', 'dashboard'], ['Audit Logs', 'escalations']] :
-                                            activeNav === 'escalations' ? [['Overview', 'dashboard'], ['Systems', 'agents'], ['Audit Logs', 'escalations']] :
-                                                activeNav === 'security' ? [['Systems', 'agents'], ['Reports', 'dashboard'], ['Audit Logs', 'escalations']] :
-                                                    [['Systems', 'agents'], ['Reports', 'dashboard'], ['Audit Logs', 'escalations']]
-                            ).map(([label, target]) => (
-                                <button
-                                    key={label}
-                                    onClick={() => setActiveNav(target)}
-                                    style={{ fontSize: 13, fontWeight: activeNav === target ? 700 : 500, color: activeNav === target ? '#10b77f' : '#64748b', border: 'none', background: 'none', cursor: 'pointer', padding: '2px 0', borderBottom: activeNav === target ? '2px solid #10b77f' : '2px solid transparent', transition: 'all 0.15s' }}
-                                >{label}</button>
-                            ))}
-                        </nav>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ position: 'relative' }}>
-                            <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 18 }}>search</span>
-                            <input
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                placeholder="Search telemetry..."
-                                style={{ paddingLeft: 36, paddingRight: 14, paddingTop: 7, paddingBottom: 7, background: '#f1f5f9', border: 'none', borderRadius: 10, fontSize: 13, outline: 'none', width: 220 }}
+                        
+                        {/* Unified Search Placeholder */}
+                        <div style={{ position: 'relative', flex: 1, maxWidth: 500 }}>
+                            <span className="material-symbols-outlined" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 20 }}>search</span>
+                            <input 
+                                placeholder="Search patients, staff, or medical records..." 
+                                style={{ width: '100%', height: 40, padding: '0 12px 0 44px', borderRadius: 12, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 13, outline: 'none' }}
                             />
                         </div>
-                        <NotifDropdown />
-                        <SettingsDropdown />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <button 
+                            onClick={() => onRoleChange?.(role === 'admin' ? 'doctor' : 'admin')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', border: '1px solid #10b77f33', background: '#f0fdf8', color: '#10b77f', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{role === 'admin' ? 'id_card' : 'shield_person'}</span>
+                            SWITCH TO {role === 'admin' ? 'DOCTOR' : 'ADMIN'}
+                        </button>
+                        
+                        <div style={{ width: 1, height: 24, background: '#f1f5f9' }} />
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ textAlign: 'right', display: 'none', md: 'block' }}>
+                                <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>Dr. Sarah Jenkins</p>
+                                <p style={{ fontSize: 10, color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>{role === 'admin' ? 'System Admin' : 'Chief Medical Officer'}</p>
+                            </div>
+                            <div style={{ width: 40, height: 40, borderRadius: 20, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 700 }}>
+                                SJ
+                            </div>
+                        </div>
                     </div>
                 </header>
 
@@ -2250,8 +2232,9 @@ export default function AdminDashboard() {
             </main>
 
             {/* ── Agent Floating Chat ── */}
-            <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16 }}>
-                {isAgentOpen ? (
+            {activeNav && !['hospital', 'hospital_map', 'hospitalMapView'].includes(activeNav.toLowerCase()) && (
+                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16 }}>
+                    {isAgentOpen ? (
                     <div style={{ width: 380, height: 500, background: 'white', borderRadius: 20, boxShadow: '0 12px 40px rgba(0,0,0,0.15)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.3s ease' }}>
                         {/* Header */}
                         <div style={{ padding: '16px 20px', background: '#10b77f', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2267,26 +2250,6 @@ export default function AdminDashboard() {
                             <button onClick={() => setIsAgentOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 4 }}>
                                 <X size={18} />
                             </button>
-                            <button
-                                onClick={() => {
-                                    if (!('speechSynthesis' in window)) { alert('Your browser does not support Text-to-Speech.'); return; }
-                                    window.speechSynthesis.cancel();
-                                    const u = new SpeechSynthesisUtterance(voiceLangRef.current === 'en-US' ? 'Hello! Voice is working correctly.' : 'Namaste! Awaaz sahi kaam kar rahi hai.');
-                                    u.lang = voiceLangRef.current;
-                                    u.pitch = 1.3;
-                                    u.rate = 1.0;
-                                    const loadAndSpeak = () => {
-                                        const voices = window.speechSynthesis.getVoices();
-                                        const pick = voices.find(v => voiceLangRef.current !== 'en-US' ? (v.name.includes('Swara') || v.name.includes('Neerja') || v.lang === 'hi-IN' || v.lang === 'en-IN') : (v.lang === 'en-US'));
-                                        if (pick) u.voice = pick;
-                                        window.speechSynthesis.speak(u);
-                                    };
-                                    const v = window.speechSynthesis.getVoices();
-                                    if (v.length > 0) { loadAndSpeak(); } else { window.speechSynthesis.addEventListener('voiceschanged', function h() { window.speechSynthesis.removeEventListener('voiceschanged', h); loadAndSpeak(); }); }
-                                }}
-                                title="Test if voice is working"
-                                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
-                            >🔊 Test</button>
                         </div>
 
                         {/* Messages */}
@@ -2358,18 +2321,6 @@ export default function AdminDashboard() {
                                     : <><MicOff size={14} /> Voice Chat</>
                                 }
                             </button>
-                            {/* Language Selector */}
-                            <select
-                                value={voiceLang}
-                                onChange={(e) => setVoiceLang(e.target.value)}
-                                disabled={voiceMode}
-                                title="Voice language (switch before enabling voice)"
-                                style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, background: voiceMode ? '#f8fafc' : 'white', cursor: voiceMode ? 'not-allowed' : 'pointer', color: '#475569', outline: 'none' }}
-                            >
-                                <option value="en-US">English</option>
-                                <option value="hi-IN">Hindi / Hinglish</option>
-                                <option value="en-IN">Indian English</option>
-                            </select>
                             <input
                                 value={agentInput}
                                 onChange={(e) => setAgentInput(e.target.value)}
@@ -2393,7 +2344,8 @@ export default function AdminDashboard() {
                         <MessageCircle size={28} />
                     </button>
                 )}
-            </div>
+                </div>
+            )}
 
             {overrideModal && <OverrideModal />}
             {showAdminProfile && <AdminProfileModal />}
