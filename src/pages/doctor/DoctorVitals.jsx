@@ -56,6 +56,11 @@ const initialPatients = [
     maxHr: 90,
     avgHr: 75,
     variability: 'Normal',
+    wearable: { battery: 82, signal: 'Strong', firmware: 'v2.4.1' },
+    labResults: [
+      { date: '2026-03-10', test: 'WBC', val: '14.2', unit: '10^3/µL', status: 'High', aiInsight: 'Elevation suggests active infection or inflammatory response.' },
+      { date: '2026-03-10', test: 'CRP', val: '45.0', unit: 'mg/L', status: 'Critical', aiInsight: 'Marked elevation indicating significant systemic inflammation.' }
+    ]
   }
 ];
 
@@ -359,74 +364,103 @@ export default function DoctorVitals() {
           </div>
         </section>
 
-        {/* Device Status */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
-          <h3 className="text-lg font-bold mb-6">Device Status</h3>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50">
-              <div className="size-10 bg-[#00b289]/10 text-[#00b289] flex items-center justify-center rounded-lg shrink-0">
-                <span className="material-symbols-outlined">router</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="text-sm font-bold truncate">IoT Gateway 04</h5>
-                <p className="text-[10px] text-slate-500 truncate">Ward {selectedPatient.ward} Network</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-black text-[#00b289] tracking-wider">ONLINE</span>
-                <div className="h-1 w-12 bg-[#00b289] rounded-full mt-1.5 ml-auto opacity-70"></div>
-              </div>
+        {/* Lab Result Interpreter & IoT Wearables (Features 5 & 6) */}
+        <section className="lg:col-span-1 space-y-8">
+          {/* Lab Result Interpreter (Feature 6) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in slide-in-from-right-4 duration-500">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
+              <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                <span className="material-symbols-outlined text-indigo-600">microscope</span>
+                AI Lab Interpreter
+              </h3>
+              <Badge className="bg-indigo-100 text-indigo-700 border-none font-black text-[10px]">BETA</Badge>
             </div>
-            
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50">
-              <div className="size-10 bg-[#00b289]/10 text-[#00b289] flex items-center justify-center rounded-lg shrink-0">
-                <span className="material-symbols-outlined">ecg</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="text-sm font-bold truncate">ECG Monitor B-12</h5>
-                <p className="text-[10px] text-slate-500 truncate">Connected: {selectedPatient.name}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-black text-[#00b289] tracking-wider">ACTIVE</span>
-                <div className="h-1 w-12 bg-[#00b289] rounded-full mt-1.5 ml-auto opacity-70 flex">
-                  <div className="h-full w-1/3 bg-white/50 rounded-full animate-pulse"></div>
+            <div className="p-6 space-y-4">
+              {selectedPatient.labResults ? selectedPatient.labResults.map((lab, i) => (
+                <div key={i} className="p-4 bg-white border border-slate-100 rounded-xl hover:shadow-md transition-all group">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-xs font-black text-slate-900 uppercase">{lab.test}</p>
+                      <p className="text-[10px] text-slate-400 font-bold">{lab.date}</p>
+                    </div>
+                    <Badge variant={lab.status === 'Critical' ? 'destructive' : 'warning'} className="text-[10px] font-black">{lab.val} {lab.unit}</Badge>
+                  </div>
+                  <div className="flex gap-2 mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100/50">
+                    <span className="material-symbols-outlined text-indigo-600" style={{ fontSize: 14 }}>psychology</span>
+                    <p className="text-[11px] text-indigo-900 italic leading-relaxed">{lab.aiInsight}</p>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50">
-              <div className="size-10 bg-orange-100 text-orange-500 flex items-center justify-center rounded-lg shrink-0">
-                <span className="material-symbols-outlined">battery_3_bar</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="text-sm font-bold truncate">Pulse Ox P-09</h5>
-                <p className="text-[10px] text-slate-500 truncate">Low Battery Alert</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-black text-orange-500 tracking-wider">12%</span>
-                <div className="h-1 w-12 bg-slate-200 mt-1.5 ml-auto rounded-full overflow-hidden">
-                  <div className="h-full w-[12%] bg-orange-500 rounded-full"></div>
+              )) : (
+                <div className="p-8 text-center bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-400 font-bold">No recent lab data for interpretation.</p>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50">
-              <div className="size-10 bg-red-100 text-red-500 flex items-center justify-center rounded-lg shrink-0">
-                <span className="material-symbols-outlined">link_off</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="text-sm font-bold truncate">BP Cuff S-22</h5>
-                <p className="text-[10px] text-slate-500 truncate">Calibration Req.</p>
-              </div>
-              <div className="text-right shrink-0 opacity-50">
-                <span className="text-[10px] font-black text-red-500 tracking-wider">ERROR</span>
-                <div className="h-1 w-12 bg-red-500 rounded-full mt-1.5 ml-auto border border-red-700"></div>
-              </div>
+              )}
+              <Button className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest gap-2">
+                <span className="material-symbols-outlined text-sm">upload_file</span>
+                Scan New Lab Report
+              </Button>
             </div>
           </div>
-          
-          <button className="w-full mt-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
-            Run Diagnostics
-          </button>
+
+          {/* IoT Wearable Sync (Feature 5) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#00b289]">watch</span>
+                Wearable Telemetry
+              </h3>
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            
+            <div className="space-y-6">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                   <div className="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                     <span className="material-symbols-outlined">battery_very_low</span>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Battery Health</p>
+                     <p className="text-sm font-black text-slate-900">{selectedPatient.wearable?.battery || 85}%</p>
+                   </div>
+                 </div>
+                 <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                   <div className="h-full bg-orange-500" style={{ width: `${selectedPatient.wearable?.battery || 85}%` }}></div>
+                 </div>
+               </div>
+
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                   <div className="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                     <span className="material-symbols-outlined">signal_cellular_alt</span>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Signal Link</p>
+                     <p className="text-sm font-black text-slate-900">{selectedPatient.wearable?.signal || 'Stable'}</p>
+                   </div>
+                 </div>
+                 <Badge className="bg-emerald-100 text-emerald-700 border-none text-[9px] font-black uppercase">ULTRA-WIDE BAND</Badge>
+               </div>
+               
+               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                 <div className="flex justify-between items-center mb-2">
+                   <span className="text-[10px] font-black text-slate-400 uppercase">Last Data Sync</span>
+                   <span className="text-[10px] font-bold text-slate-500">2.4s ago</span>
+                 </div>
+                 <div className="h-12 flex items-center gap-1">
+                   {[...Array(20)].map((_, i) => (
+                     <div key={i} className="flex-1 bg-emerald-500/20 rounded-full" style={{ height: `${20 + Math.random() * 80}%` }}></div>
+                   ))}
+                 </div>
+               </div>
+               
+               <Button variant="outline" className="w-full h-10 border-slate-200 text-slate-600 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50">
+                 Resync All Wearables
+               </Button>
+            </div>
+          </div>
         </section>
       </div>
 

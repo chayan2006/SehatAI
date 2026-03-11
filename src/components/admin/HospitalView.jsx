@@ -43,6 +43,7 @@ export default function HospitalView() {
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [editStatus, setEditStatus] = useState('');
   const [editPatient, setEditPatient] = useState('');
+  const [twinMode, setTwinMode] = useState(true);
 
   // ── Agent States ─────────────────────────────────────────────────────────────
   const [isAgentOpen, setIsAgentOpen] = useState(false);
@@ -359,71 +360,114 @@ export default function HospitalView() {
             </div>
           </div>
 
-          {/* Interactive Ward Map */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h4 className="font-bold">Ward Occupancy Map</h4>
+          {/* 3D Digital Twin Map (Feature 4) */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                  <span className="material-symbols-outlined text-indigo-600">t_5g</span>
+                  3D Operational Digital Twin
+                </h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-1">St. Jude Wing A • Real-time Telemetry Overlay</p>
+              </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveWard('ICU')}
-                  className={`px-3 py-1 rounded text-xs font-bold transition-colors ${activeWard === 'ICU' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                <Button 
+                  onClick={() => setTwinMode(!twinMode)}
+                  variant={twinMode ? "default" : "outline"} 
+                  className={`h-8 text-[10px] font-black uppercase tracking-widest ${twinMode ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : ''}`}
                 >
-                  ICU
-                </button>
-                <button
-                  onClick={() => setActiveWard('General Ward')}
-                  className={`px-3 py-1 rounded text-xs font-bold transition-colors ${activeWard === 'General Ward' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  General Ward
-                </button>
-              </div>
-            </div>
-
-            <div className="p-8 grid grid-cols-4 md:grid-cols-6 gap-4">
-              {displayedBeds.map((bed) => {
-                let bgClass = "bg-slate-100";
-                let icon = "bed";
-                let textClass = "text-slate-400";
-                let iconClass = "text-slate-300";
-
-                if (bed.status === 'Occupied') {
-                  bgClass = "bg-[#00b289]/20";
-                  icon = "person";
-                  textClass = "text-[#00b289]";
-                  iconClass = "text-[#00b289]";
-                } else if (bed.status === 'Maintenance') {
-                  bgClass = "bg-red-100";
-                  icon = "medical_services";
-                  textClass = "text-red-500";
-                  iconClass = "text-red-500";
-                }
-
-                return (
-                  <div
-                    key={bed.id}
-                    onClick={() => openManageBed(bed)}
-                    className={`aspect-square ${bgClass} rounded-lg flex flex-col items-center justify-center p-2 relative cursor-pointer hover:opacity-80 transition-opacity hover:scale-[1.02] transform duration-200`}
+                  {twinMode ? 'Isometric View' : 'Flat View'}
+                </Button>
+                <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                {['FL 1', 'FL 2', 'ICU'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveWard(f === 'ICU' ? 'ICU' : 'General Ward')}
+                    className={`px-3 h-8 rounded-lg text-[10px] font-black transition-all ${((f === 'ICU' && activeWard === 'ICU') || (f !== 'ICU' && activeWard === 'General Ward')) ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                   >
-                    <span className={`material-symbols-outlined ${iconClass}`}>{icon}</span>
-                    <span className={`text-[10px] font-bold mt-1 ${textClass}`}>{bed.id}</span>
-                    {bed.status === 'Available' && <span className="absolute top-1 right-1 size-2 rounded-full bg-[#00b289]"></span>}
-                  </div>
-                )
-              })}
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="px-8 pb-6 flex items-center gap-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-[#00b289]"></span>
-                Available
+            <div className={`p-10 transition-all duration-700 ease-in-out ${twinMode ? 'perspective-[1200px]' : ''}`}>
+              <div 
+                className={`grid grid-cols-4 md:grid-cols-6 gap-6 transition-all duration-1000 ease-in-out ${twinMode ? 'rotate-x-[45deg] rotate-z-[-25deg] skew-x-[5deg] -translate-y-8' : ''}`}
+                style={{ transformStyle: 'preserve-3d' }}
+              >
+                {displayedBeds.map((bed) => {
+                  let statusColor = "bg-slate-200";
+                  let lightColor = "bg-slate-400";
+                  let icon = "bed";
+                  
+                  if (bed.status === 'Occupied') {
+                    statusColor = "bg-[#00b289]";
+                    lightColor = "bg-emerald-400";
+                    icon = "person";
+                  } else if (bed.status === 'Maintenance') {
+                    statusColor = "bg-red-500";
+                    lightColor = "bg-red-300";
+                    icon = "warning";
+                  }
+
+                  return (
+                    <div
+                      key={bed.id}
+                      onClick={() => openManageBed(bed)}
+                      className={`relative aspect-square rounded-xl cursor-pointer transition-all duration-300 group ${statusColor} ${twinMode ? 'shadow-[10px_10px_20px_rgba(0,0,0,0.1)]' : 'shadow-sm'}`}
+                      style={{ 
+                        transform: twinMode ? 'translateZ(20px)' : 'none',
+                        transformStyle: 'preserve-3d'
+                      }}
+                    >
+                      {/* 3D Depth Walls */}
+                      {twinMode && (
+                        <>
+                          <div className={`absolute bottom-0 left-0 w-full h-[15px] ${statusColor} brightness-75 origin-bottom rotate-x-[90deg] translate-y-[15px]`}></div>
+                          <div className={`absolute top-0 right-0 w-[15px] h-full ${statusColor} brightness-50 origin-right rotate-y-[90deg] translate-x-[15px]`}></div>
+                        </>
+                      )}
+
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
+                        <span className={`material-symbols-outlined text-white transition-transform duration-500 ${twinMode ? 'scale-110 -translate-y-1' : ''}`} style={{ fontSize: twinMode ? 28 : 20 }}>{icon}</span>
+                        <span className="text-[9px] font-black text-white/80 mt-1 uppercase tracking-tighter">{bed.id}</span>
+                      </div>
+
+                      {/* Status Indicator Pulse */}
+                      <div className={`absolute top-2 right-2 size-2 rounded-full ${lightColor} ${bed.status === 'Occupied' ? 'animate-pulse' : ''} shadow-[0_0_8px_currentColor]`}></div>
+                      
+                      {/* Hover Info */}
+                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 font-black uppercase tracking-widest shadow-xl">
+                        {bed.status}: {bed.patient || 'Vacant'}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-[#00b289]/20 border border-[#00b289]/50"></span>
-                Occupied
+            </div>
+
+            <div className="px-8 pb-8 flex items-center justify-between">
+              <div className="flex items-center gap-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-slate-300"></span>
+                  Ready
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-[#00b289] animate-pulse"></span>
+                  Monitored
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-red-500"></span>
+                  Service
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-red-400"></span>
-                Maintenance
+              
+              <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-3">
+                 <div className="size-6 bg-indigo-600 rounded-full flex items-center justify-center">
+                   <span className="material-symbols-outlined text-white text-xs">analytics</span>
+                 </div>
+                 <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-tighter">AI Predicts 4 Admissions in Ward A by 18:00</span>
               </div>
             </div>
           </div>
