@@ -16,7 +16,7 @@ export default function DoctorConsultations() {
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900">Consultations</h2>
-        <Button className="bg-teal-600 hover:bg-teal-700 text-white">
+        <Button className="bg-primary hover:bg-primary/90 text-white">
           <CalendarIcon className="mr-2 h-4 w-4" /> Schedule Follow-up
         </Button>
       </div>
@@ -55,18 +55,18 @@ export default function DoctorConsultations() {
                   {apt.location}
                 </div>
               </div>
-              <div className="bg-teal-50/50 p-3 rounded-md border border-teal-100 mb-4">
-                <p className="text-xs font-semibold text-teal-800 mb-1 flex items-center">
+              <div className="bg-primary/5 p-3 rounded-md border border-primary/20 mb-4">
+                <p className="text-xs font-semibold text-primary mb-1 flex items-center">
                   <Activity className="mr-1 h-3 w-3" /> AI Pre-Consultation Notes:
                 </p>
-                <p className="text-sm text-teal-900">{apt.aiNotes}</p>
+                <p className="text-sm text-primary">{apt.aiNotes}</p>
               </div>
               <div className="flex space-x-2">
                 <Button variant="outline" className="w-full text-slate-600">Reschedule</Button>
                 {apt.mode === 'Telehealth' ? (
                   <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white"><Video className="mr-2 h-4 w-4" /> Start Call</Button>
                 ) : (
-                  <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Check-in Patient</Button>
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-white">Check-in Patient</Button>
                 )}
               </div>
             </CardContent>

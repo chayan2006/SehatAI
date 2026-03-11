@@ -7,6 +7,7 @@ import AnalyticsView from '../components/admin/AnalyticsView';
 import ResourcesView from '../components/admin/ResourcesView';
 import StaffView from '../components/admin/StaffView';
 import AuditView from '../components/admin/AuditView';
+import HospitalView from '../components/admin/HospitalView';
 
 // ─── Initial Data ──────────────────────────────────────────────────────────────
 const INITIAL_ESCALATIONS = [
@@ -46,6 +47,7 @@ const NAV_ITEMS = [
     { id: 'resources', label: 'Resource Map', icon: 'map' },
     { id: 'staff', label: 'Staff Hub', icon: 'badge' },
     { id: 'audit', label: 'Audit Logs', icon: 'history' },
+    { id: 'hospital', label: 'Hospital Map', icon: 'local_hospital' },
 ];
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
@@ -532,6 +534,7 @@ export default function AdminDashboard() {
             case 'resources': return <ResourcesView />;
             case 'staff': return <StaffView onBroadcast={dispatchBroadcast} />;
             case 'audit': return <AuditView liveLogs={auditLog} />;
+            case 'hospital': return <HospitalView />;
             default: return <DashboardView />;
         }
     };

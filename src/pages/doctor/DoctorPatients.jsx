@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Heart, Search, Filter, Plus, Activity, FileText, Ambulance } from 'lucide-react';
+import { Heart, Search, Filter, Plus, Activity, FileText, Ambulance, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
-const patients = [
+const initialPatients = [
   { id: 1, name: 'Eleanor Vance', age: 78, status: 'Critical', lastActive: '2 mins ago', condition: 'Arrhythmia', hr: 110, bp: '145/90', riskScore: 92, aiNotes: 'Sustained tachycardia detected.', ambulanceStatus: 'En Route' },
   { id: 2, name: 'Robert Ford', age: 82, status: 'Inactive', lastActive: '49 hours ago', condition: 'Hypertension', hr: 72, bp: '130/85', riskScore: 85, aiNotes: 'No vitals logged for 48h.', ambulanceStatus: 'None' },
   { id: 3, name: 'Martha Wayne', age: 65, status: 'Stable', lastActive: '1 hour ago', condition: 'Post-op Recovery', hr: 68, bp: '118/75', riskScore: 24, aiNotes: 'Recovery progressing normally.', ambulanceStatus: 'None' },
@@ -15,14 +25,84 @@ const patients = [
 ];
 
 export default function DoctorPatients() {
+  const [patients, setPatients] = useState(initialPatients);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // New Patient Form State
+  const [newName, setNewName] = useState("");
+  const [newAge, setNewAge] = useState("");
+  const [newCondition, setNewCondition] = useState("");
+  
+  const handleAddPatient = (e) => {
+    e.preventDefault();
+    if (!newName) return;
+    
+    const newPatient = {
+      id: Date.now(),
+      name: newName,
+      age: parseInt(newAge) || 45,
+      status: 'Stable',
+      lastActive: 'Just now',
+      condition: newCondition || 'Under Observation',
+      hr: Math.floor(Math.random() * (90 - 60 + 1) + 60), // Mock HR
+      bp: '120/80', // Mock BP
+      riskScore: Math.floor(Math.random() * (40 - 10 + 1) + 10), // Low risk mock score
+      aiNotes: 'New patient added. Baseline vitals recorded.',
+      ambulanceStatus: 'None'
+    };
+    
+    setPatients([newPatient, ...patients]);
+    setIsDialogOpen(false);
+    
+    // Reset form
+    setNewName("");
+    setNewAge("");
+    setNewCondition("");
+  };
+
+  const removePatient = (id) => {
+    setPatients(patients.filter(p => p.id !== id));
+  };
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900">My Patients</h2>
         <div className="flex items-center space-x-2">
-          <Button className="bg-teal-600 hover:bg-teal-700 text-white">
-            <Plus className="mr-2 h-4 w-4" /> Add Patient
-          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white">
+                <Plus className="mr-2 h-4 w-4" /> Add Patient
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Patient</DialogTitle>
+                <DialogDescription>
+                  Enter the patient's details here to add them to your roster. Click save when you're done.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddPatient}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name" className="text-right text-slate-700">Name</Label>
+                    <Input id="name" value={newName} onChange={(e) => setNewName(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. Jane Doe" required />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="age" className="text-right text-slate-700">Age</Label>
+                    <Input id="age" type="number" value={newAge} onChange={(e) => setNewAge(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. 45" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="condition" className="text-right text-slate-700">Condition</Label>
+                    <Input id="condition" value={newCondition} onChange={(e) => setNewCondition(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. Routine Checkup" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="border-slate-200 hover:bg-slate-50">Cancel</Button>
+                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">Save Patient</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -66,7 +146,7 @@ export default function DoctorPatients() {
                     <td className="px-4 py-4">
                       <div className="font-medium text-slate-700">{patient.condition}</div>
                       <div className="text-xs text-slate-500 mt-1 flex items-center">
-                        <Activity className="h-3 w-3 mr-1 text-teal-500" /> {patient.aiNotes}
+                        <Activity className="h-3 w-3 mr-1 text-primary" /> {patient.aiNotes}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -101,9 +181,20 @@ export default function DoctorPatients() {
                       </Badge>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <Button variant="outline" size="sm" className="text-teal-700 border-teal-200 hover:bg-teal-50">
-                        <FileText className="mr-2 h-4 w-4" /> View Chart
-                      </Button>
+                      <div className="flex items-center justify-end space-x-2">
+                        <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/10">
+                          <FileText className="mr-2 h-4 w-4" /> View Chart
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => removePatient(patient.id)}
+                          title="Remove Patient"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
