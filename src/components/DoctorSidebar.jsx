@@ -14,7 +14,6 @@ export function DoctorSidebar({ className, activeTab, onTabChange }) {
     { id: 'emergency', label: 'Emergency', icon: AlertCircle },
     { id: 'vitals', label: 'Vitals', icon: HeartPulse },
     { id: 'ward', label: 'Ward/Bed', icon: BedDouble },
-    { id: 'scheduling', label: 'Scheduling', icon: Calendar },
   ];
 
   const secondaryNavItems = [
@@ -22,8 +21,6 @@ export function DoctorSidebar({ className, activeTab, onTabChange }) {
     { id: 'lab', label: 'Lab', icon: FlaskConical },
     { id: 'billing', label: 'Billing', icon: Receipt },
     { id: 'analytics', label: 'Analytics', icon: BarChart2 },
-    { id: 'security', label: 'Security', icon: ShieldCheck },
-    { id: 'messaging', label: 'Messaging', icon: MessageSquare },
   ];
 
   return (
