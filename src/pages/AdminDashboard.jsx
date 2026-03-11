@@ -146,10 +146,12 @@ export default function AdminDashboard() {
     const [agentExecutor, setAgentExecutor] = useState(null);
     const [isListening, setIsListening] = useState(false);
     const [voiceMode, setVoiceMode] = useState(false);
+    const [voiceLang, setVoiceLang] = useState('hi-IN'); // Default to Hindi/India region
     const recognitionRef = useRef(null);
-    const handleMessageRef = useRef(null); // always points to latest handleAgentMessage
-    const voiceModeRef = useRef(false); // ref version to avoid stale closures inside callbacks
-    const transcriptRef = useRef('');   // captures transcript for auto-submit inside onend
+    const handleMessageRef = useRef(null);
+    const voiceModeRef = useRef(false);
+    const voiceLangRef = useRef('hi-IN'); // mirrors voiceLang for use in closures
+    const transcriptRef = useRef('');
 
     const notifRef = useRef(null);
     const settingsRef = useRef(null);
@@ -233,7 +235,7 @@ export default function AdminDashboard() {
         const r = new SR();
         r.continuous = false;
         r.interimResults = true;
-        r.lang = 'en-US';
+        r.lang = voiceLang; // Bound to state
         r.onresult = (e) => {
             let t = '';
             for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
@@ -255,18 +257,19 @@ export default function AdminDashboard() {
             }
         };
         recognitionRef.current = r;
-    }, []); // eslint-disable-line
+    }, [voiceLang]); // Re-initialize STT if language changes
 
-    // Keep voiceModeRef in sync with voiceMode state
+    // Keep voiceModeRef + voiceLangRef in sync with their state counterparts
     useEffect(() => {
         voiceModeRef.current = voiceMode;
+        voiceLangRef.current = voiceLang;
         if (!voiceMode) {
             recognitionRef.current?.stop();
             window.speechSynthesis?.cancel();
             setIsListening(false);
             setAgentInput('');
         }
-    }, [voiceMode]);
+    }, [voiceMode, voiceLang]);
 
     const startListeningOnce = () => {
         if (!recognitionRef.current) return;
@@ -278,11 +281,25 @@ export default function AdminDashboard() {
     const toggleVoiceMode = () => {
         if (voiceMode) {
             setVoiceMode(false);
+            window.speechSynthesis?.cancel();
             showToast('Voice chat ended.', 'info');
         } else {
             if (!recognitionRef.current) { showToast('Voice not supported in this browser.', 'error'); return; }
             setVoiceMode(true);
             showToast('Voice chat started! Say something…', 'success');
+
+            // ── Chrome TTS Unlock ──────────────────────────────────────────────────
+            // Chrome blocks speechSynthesis.speak() inside async callbacks unless
+            // the audio context is first "unlocked" by a direct user gesture.
+            // Speaking a near-silent utterance RIGHT NOW (inside this click handler)
+            // unlocks TTS for the entire session, allowing the AI response to speak.
+            if ('speechSynthesis' in window) {
+                const warmup = new SpeechSynthesisUtterance(' ');
+                warmup.volume = 0.01; // nearly silent
+                warmup.rate = 10;     // instant
+                window.speechSynthesis.speak(warmup);
+            }
+
             setTimeout(() => startListeningOnce(), 300);
         }
     };
@@ -440,29 +457,44 @@ export default function AdminDashboard() {
             setAgentMessages(prev => [...prev, { role: 'assistant', text: response.output }]);
 
             // ── Text-to-Speech (TTS) ──
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Stop current speech if any
-                // Clean up markdown characters so it sounds natural
-                const cleanText = response.output.replace(/[*_#`]/g, '');
-                const utterance = new SpeechSynthesisUtterance(cleanText);
-                utterance.lang = 'en-US';
-                utterance.rate = 1.05; // Slightly faster for an uplifting tone
-                utterance.pitch = 1.4; // Higher pitch for a sweeter sound
-                utterance.volume = 1.0;
+            if (voiceModeRef.current && 'speechSynthesis' in window) {
+                const cleanText = response.output.replace(/[*_#`]/g, '').slice(0, 400);
 
-                // Try to grab a sweet, female voice if available
-                const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(v =>
-                    v.name.includes('Samantha') || // macOS natural sweet voice
-                    v.name.includes('Google UK English Female') ||
-                    v.name.includes('Microsoft Zira') || // Windows high-pitch female
-                    (v.lang.includes('en-') && v.name.includes('Female'))
-                );
-                if (preferredVoice) utterance.voice = preferredVoice;
+                // Delay slightly so Chrome's internal state settles after the LLM response
+                setTimeout(() => {
+                    try {
+                        window.speechSynthesis.cancel(); // clear any leftover queue
 
-                // Restart mic after AI finishes speaking (2-way loop)
-                utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
-                window.speechSynthesis.speak(utterance);
+                        const utterance = new SpeechSynthesisUtterance(cleanText);
+                        utterance.rate = 1.0;
+                        utterance.pitch = 1.2;
+                        utterance.volume = 1.0;
+
+                        // Try to pick a nice voice — but don't block speaking if none found
+                        const voices = window.speechSynthesis.getVoices();
+                        const lang = voiceLangRef.current;
+                        const pick = lang !== 'en-US'
+                            ? voices.find(v => v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Lekha') || v.lang === 'hi-IN' || v.lang === 'en-IN')
+                            : voices.find(v => v.name.includes('Zira') || v.name.includes('Samantha') || v.lang === 'en-US');
+
+                        if (pick) {
+                            utterance.voice = pick;
+                            utterance.lang = pick.lang;
+                        }
+                        // If no pick — let browser use its own default. ALWAYS speak.
+
+                        utterance.onstart = () => console.log('[TTS ✓] Speaking with voice:', utterance.voice?.name || 'browser default');
+                        utterance.onerror = (e) => { console.error('[TTS ✗] Error:', e.error); if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
+                        utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
+
+                        window.speechSynthesis.speak(utterance);
+                    } catch (err) {
+                        console.error('[TTS] Exception:', err);
+                        if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400);
+                    }
+                }, 150);
+            } else if (voiceModeRef.current) {
+                setTimeout(() => startListeningOnce(), 400);
             }
 
         } catch (error) {
@@ -2235,6 +2267,26 @@ export default function AdminDashboard() {
                             <button onClick={() => setIsAgentOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 4 }}>
                                 <X size={18} />
                             </button>
+                            <button
+                                onClick={() => {
+                                    if (!('speechSynthesis' in window)) { alert('Your browser does not support Text-to-Speech.'); return; }
+                                    window.speechSynthesis.cancel();
+                                    const u = new SpeechSynthesisUtterance(voiceLangRef.current === 'en-US' ? 'Hello! Voice is working correctly.' : 'Namaste! Awaaz sahi kaam kar rahi hai.');
+                                    u.lang = voiceLangRef.current;
+                                    u.pitch = 1.3;
+                                    u.rate = 1.0;
+                                    const loadAndSpeak = () => {
+                                        const voices = window.speechSynthesis.getVoices();
+                                        const pick = voices.find(v => voiceLangRef.current !== 'en-US' ? (v.name.includes('Swara') || v.name.includes('Neerja') || v.lang === 'hi-IN' || v.lang === 'en-IN') : (v.lang === 'en-US'));
+                                        if (pick) u.voice = pick;
+                                        window.speechSynthesis.speak(u);
+                                    };
+                                    const v = window.speechSynthesis.getVoices();
+                                    if (v.length > 0) { loadAndSpeak(); } else { window.speechSynthesis.addEventListener('voiceschanged', function h() { window.speechSynthesis.removeEventListener('voiceschanged', h); loadAndSpeak(); }); }
+                                }}
+                                title="Test if voice is working"
+                                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                            >🔊 Test</button>
                         </div>
 
                         {/* Messages */}
@@ -2306,6 +2358,18 @@ export default function AdminDashboard() {
                                     : <><MicOff size={14} /> Voice Chat</>
                                 }
                             </button>
+                            {/* Language Selector */}
+                            <select
+                                value={voiceLang}
+                                onChange={(e) => setVoiceLang(e.target.value)}
+                                disabled={voiceMode}
+                                title="Voice language (switch before enabling voice)"
+                                style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, background: voiceMode ? '#f8fafc' : 'white', cursor: voiceMode ? 'not-allowed' : 'pointer', color: '#475569', outline: 'none' }}
+                            >
+                                <option value="en-US">English</option>
+                                <option value="hi-IN">Hindi / Hinglish</option>
+                                <option value="en-IN">Indian English</option>
+                            </select>
                             <input
                                 value={agentInput}
                                 onChange={(e) => setAgentInput(e.target.value)}
