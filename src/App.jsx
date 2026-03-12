@@ -31,6 +31,10 @@ import DoctorPatients from '@/pages/doctor/DoctorPatients';
 import DoctorStaff from '@/pages/doctor/DoctorStaff';
 import DoctorConsultations from '@/pages/doctor/DoctorConsultations';
 import DoctorAmbulance from '@/pages/doctor/DoctorAmbulance';
+import DoctorVitals from '@/pages/doctor/DoctorVitals';
+import DoctorPharmacy from '@/pages/doctor/DoctorPharmacy';
+import DoctorWard from '@/pages/doctor/DoctorWard';
+import DoctorBilling from '@/pages/doctor/DoctorBilling';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -71,10 +75,15 @@ export default function App() {
     switch (doctorTab) {
       case 'dashboard': return <AdminDashboard />;
       case 'triage': return <DoctorTriage />;
+      case 'emergency': return <DoctorTriage />;
+      case 'pharmacy': return <DoctorPharmacy />;
       case 'patients': return <DoctorPatients />;
       case 'staff': return <DoctorStaff />;
+      case 'vitals': return <DoctorVitals />;
       case 'consultations': return <DoctorConsultations />;
       case 'ambulance': return <DoctorAmbulance />;
+      case 'ward': return <DoctorWard />;
+      case 'billing': return <DoctorBilling />;
       case 'ai-insights': return <AgentLogs />; // Reusing agent logs for AI insights
       case 'settings': return <Settings />; // Reusing settings
       default: return <AdminDashboard />;
