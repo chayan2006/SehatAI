@@ -18,14 +18,55 @@ export default function DoctorTriage() {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center">
+        <h2 className="text-3xl font-black tracking-tight text-slate-900 flex items-center uppercase">
           <AlertTriangle className="mr-3 h-8 w-8 text-red-600" />
-          Emergency Triage & AI Escalations
+          Smart Triage Prioritization
         </h2>
         <div className="flex space-x-2">
-          <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
+          <Button variant="outline" className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-black uppercase text-[10px] tracking-widest">
             <Activity className="mr-2 h-4 w-4" /> Live Vitals Stream
           </Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest">
+            Refresh AI Ranking
+          </Button>
+        </div>
+      </div>
+
+      {/* AI Triage Logic (Feature 7) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white border-2 border-slate-900 rounded-2xl p-6 shadow-[8px_8px_0px_rgba(0,0,0,0.1)]">
+           <div className="flex justify-between items-start mb-4">
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority Index</span>
+             <Badge className="bg-red-600 text-white border-none font-black">CRITICAL</Badge>
+           </div>
+           <h4 className="text-3xl font-black text-slate-900">9.8/10</h4>
+           <div className="mt-4 flex items-center gap-2 text-red-600">
+             <span className="material-symbols-outlined text-sm">trending_up</span>
+             <span className="text-[11px] font-bold">Surge detected in Wing C</span>
+           </div>
+        </div>
+        
+        <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
+           <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12 scale-150">
+             <AlertTriangle size={120} />
+           </div>
+           <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2">Wait Time Impact</p>
+           <h4 className="text-3xl font-black">-18 min</h4>
+           <p className="text-[11px] mt-4 opacity-90 font-medium italic">AI Re-routing optimized ER inflow by 22%</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-6">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Next Escalation Risk</p>
+           <div className="space-y-3">
+             <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                <span className="text-[11px] font-black text-slate-900">Patient #9921</span>
+                <span className="text-[10px] font-bold text-amber-600">High Risk</span>
+             </div>
+             <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                <span className="text-[11px] font-black text-slate-900">Patient #4482</span>
+                <span className="text-[10px] font-bold text-slate-400">Stable</span>
+             </div>
+           </div>
         </div>
       </div>
 

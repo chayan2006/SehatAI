@@ -152,6 +152,17 @@ export default function App() {
     }
   }
 
+  if (role === 'admin' || role === 'doctor') {
+    return <AdminDashboard 
+      role={role} 
+      onRoleChange={(r) => setRole(r)} 
+      onLogout={() => {
+        setIsAuthenticated(false);
+        setAuthStep('gateway');
+      }} 
+    />;
+  }
+
   return (
     <div className="flex h-screen bg-background-light font-display">
       {renderSidebar()}

@@ -1,0 +1,673 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { initHospitalAgent } from '@/lib/hospitalAgent';
+import { Bot, Send, X, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
+
+const initialBeds = [
+  // General Ward (12 beds)
+  { id: '101', ward: 'General Ward', status: 'Available', patient: '' },
+  { id: '102', ward: 'General Ward', status: 'Occupied', patient: 'John Doe' },
+  { id: '103', ward: 'General Ward', status: 'Occupied', patient: 'Sarah Smith' },
+  { id: '104', ward: 'General Ward', status: 'Maintenance', patient: '' },
+  { id: '105', ward: 'General Ward', status: 'Available', patient: '' },
+  { id: '106', ward: 'General Ward', status: 'Occupied', patient: 'Mike Johnson' },
+  { id: '107', ward: 'General Ward', status: 'Occupied', patient: 'Emma Brown' },
+  { id: '108', ward: 'General Ward', status: 'Available', patient: '' },
+  { id: '109', ward: 'General Ward', status: 'Available', patient: '' },
+  { id: '110', ward: 'General Ward', status: 'Occupied', patient: 'Robert Chen' },
+  { id: '111', ward: 'General Ward', status: 'Occupied', patient: 'Jane Lee' },
+  { id: '112', ward: 'General Ward', status: 'Available', patient: '' },
+  // ICU (6 beds)
+  { id: 'ICU-1', ward: 'ICU', status: 'Occupied', patient: 'Critical Patient A' },
+  { id: 'ICU-2', ward: 'ICU', status: 'Occupied', patient: 'Critical Patient B' },
+  { id: 'ICU-3', ward: 'ICU', status: 'Available', patient: '' },
+  { id: 'ICU-4', ward: 'ICU', status: 'Maintenance', patient: '' },
+  { id: 'ICU-5', ward: 'ICU', status: 'Occupied', patient: 'Critical Patient C' },
+  { id: 'ICU-6', ward: 'ICU', status: 'Available', patient: '' },
+];
+
+export default function HospitalView() {
+  const [activeWard, setActiveWard] = useState('General Ward');
+  const [beds, setBeds] = useState(initialBeds);
+  const [selectedBed, setSelectedBed] = useState(null);
+  const [isManageOpen, setIsManageOpen] = useState(false);
+  const [editStatus, setEditStatus] = useState('');
+  const [editPatient, setEditPatient] = useState('');
+  const [twinMode, setTwinMode] = useState(true);
+
+  // ── Agent States ─────────────────────────────────────────────────────────────
+  const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [agentMessages, setAgentMessages] = useState([
+    { role: 'assistant', text: 'Welcome to St. Jude Operations. I am your specialized Hospital AI Assistant. How can I assist with ward management, bed occupancy, or staff coordination today?' }
+  ]);
+  const [agentInput, setAgentInput] = useState('');
+  const [isAgentTyping, setIsAgentTyping] = useState(false);
+  const [agentExecutor, setAgentExecutor] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const recognitionRef = useRef(null);
+  const handleMessageRef = useRef(null); 
+  const voiceModeRef = useRef(false);
+  const transcriptRef = useRef('');
+  const stateRef = useRef({ beds });
+
+  // Derived Stats
+  const totalBeds = beds.length + 82; // Baseline pad for realism
+  const occupiedBeds = beds.filter(b => b.status === 'Occupied').length + 70;
+  const availableBedsCount = beds.filter(b => b.status === 'Available').length;
+  const occupancyRate = Math.round((occupiedBeds / totalBeds) * 100);
+
+  const displayedBeds = beds.filter(b => b.ward === activeWard);
+
+  const openManageBed = (bed) => {
+    setSelectedBed(bed);
+    setEditStatus(bed.status);
+    setEditPatient(bed.patient);
+    setIsManageOpen(true);
+  };
+
+  const handleSaveBed = (e) => {
+    e.preventDefault();
+    setBeds(beds.map(b => b.id === selectedBed.id ? {
+      ...b,
+      status: editStatus,
+      patient: editStatus === 'Occupied' ? editPatient : ''
+    } : b));
+    setIsManageOpen(false);
+  };
+
+  // ── AI Logic ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    stateRef.current = { beds };
+  }, [beds]);
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.continuous = false;
+    r.interimResults = true;
+    r.lang = 'en-US';
+    r.onresult = (e) => {
+      let t = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+      setAgentInput(t);
+      transcriptRef.current = t;
+    };
+    r.onend = () => {
+      setIsListening(false);
+      const captured = transcriptRef.current.trim();
+      if (captured && voiceModeRef.current) {
+        transcriptRef.current = '';
+        setAgentInput('');
+        handleMessageRef.current?.(captured);
+      }
+    };
+    recognitionRef.current = r;
+  }, []);
+
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+    if (!voiceMode) {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+      setIsListening(false);
+      setAgentInput('');
+    }
+  }, [voiceMode]);
+
+  const startListeningOnce = () => {
+    if (!recognitionRef.current) return;
+    transcriptRef.current = '';
+    setAgentInput('');
+    try { recognitionRef.current.start(); setIsListening(true); } catch (_) { }
+  };
+
+  const toggleVoiceMode = () => {
+    setVoiceMode(prev => {
+      if (!prev && !recognitionRef.current) return false;
+      return !prev;
+    });
+    if (!voiceMode) setTimeout(() => startListeningOnce(), 300);
+  };
+
+  useEffect(() => {
+    const setupAgent = async () => {
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env?.GROQ_API_KEY : undefined);
+      if (!apiKey) return;
+      try {
+        const executor = await initHospitalAgent({
+          apiKey,
+          handlers: {
+            getStats: () => ({
+              occupancyRate,
+              availableBedsCount,
+              activeEmergencies: 2,
+              appointmentsToday: 48
+            }),
+            getWardStatus: (ward) => stateRef.current.beds.filter(b => b.ward === ward),
+            manageBed: (params) => {
+              setBeds(prev => prev.map(b => b.id === params.bedId ? {
+                ...b,
+                status: params.status,
+                patient: params.status === 'Occupied' ? params.patient : ''
+              } : b));
+            },
+            getStaff: () => [
+              "Dr. Marcus Thorne (ER)", "Elena Vance (ICU)", "Dr. James Wilson (Surgery)", "Maria Garcia (Admissions)"
+            ],
+            getEmergencies: () => [
+              { type: "CODE BLUE", room: "402", elapsed: "02:45 min", team: "Team Alpha" }
+            ],
+            sendPage: (msg, recipient) => `Page sent to ${recipient}: ${msg}`
+          }
+        });
+        setAgentExecutor(executor);
+      } catch (err) { console.error("Agent Init Error:", err); }
+    };
+    setupAgent();
+  }, [occupancyRate, availableBedsCount]);
+
+  useEffect(() => {
+    handleMessageRef.current = (text) => {
+      if (!agentExecutor) return;
+      handleAgentMessage(text);
+    };
+  });
+
+  const handleAgentMessage = async (text) => {
+    if (!agentExecutor) return;
+    setIsAgentTyping(true);
+    setAgentMessages(prev => [...prev, { role: 'human', text }]);
+    try {
+      const response = await agentExecutor.invoke({
+        input: text,
+        chat_history: agentMessages.map(m => [m.role === 'human' ? 'human' : 'assistant', m.text]).slice(-10)
+      });
+      setAgentMessages(prev => [...prev, { role: 'assistant', text: response.output }]);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(response.output.replace(/[*_#`]/g, ''));
+        utterance.lang = 'en-US'; utterance.rate = 1.05; utterance.pitch = 1.4;
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google UK English Female') || v.name.includes('Microsoft Zira'));
+        if (voice) utterance.voice = voice;
+        utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (e) { console.error(e); } finally { setIsAgentTyping(false); }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar bg-background-light text-slate-900 font-display">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">Hospital Overview</h2>
+        <p className="text-slate-500">Real-time status of St. Jude Medical Center</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="material-symbols-outlined text-blue-500 p-2 bg-blue-50 rounded-lg">hotel</span>
+            <span className="text-xs font-bold text-green-500">+2% vs last hour</span>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">Hospital Occupancy</p>
+          <h3 className="text-3xl font-bold">{occupancyRate}%</h3>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="material-symbols-outlined text-red-500 p-2 bg-red-50 rounded-lg">emergency_home</span>
+            <span className="text-xs font-bold text-red-500">-1 vs last hour</span>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">Active Emergencies</p>
+          <h3 className="text-3xl font-bold">2</h3>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="material-symbols-outlined text-primary p-2 bg-primary/10 rounded-lg">bed</span>
+            <span className="text-xs font-bold text-slate-400">Critical: Low</span>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">Bed Availability</p>
+          <h3 className="text-3xl font-bold">{availableBedsCount} Free</h3>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="material-symbols-outlined text-teal-500 p-2 bg-teal-50 rounded-lg">event_available</span>
+            <span className="text-xs font-bold text-green-500">+5% scheduled</span>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">Today's Appointments</p>
+          <h3 className="text-3xl font-bold">48</h3>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 lg:col-span-8 space-y-8">
+
+          <div className="bg-red-500 text-white p-6 rounded-xl shadow-lg border-l-8 border-red-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined animate-pulse">warning</span>
+                <h4 className="text-xl font-bold uppercase tracking-tight">Active Emergency Alert</h4>
+              </div>
+              <span className="bg-red-700/50 px-3 py-1 rounded text-xs font-bold tracking-widest">CRITICAL</span>
+            </div>
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-1 bg-white/10 p-4 rounded-lg">
+                <p className="text-xs uppercase font-bold opacity-75 mb-1">Alert Type</p>
+                <p className="text-lg font-bold">CODE BLUE - Room 402</p>
+              </div>
+              <div className="flex-1 bg-white/10 p-4 rounded-lg">
+                <p className="text-xs uppercase font-bold opacity-75 mb-1">Time Elapsed</p>
+                <p className="text-lg font-bold">02:45 min</p>
+              </div>
+              <div className="flex-1 bg-white/10 p-4 rounded-lg border border-white/20">
+                <p className="text-xs uppercase font-bold opacity-75 mb-1">Response Team</p>
+                <p className="text-lg font-bold">Team Alpha Dispatched</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-bold">High-Risk Patient Vitals</h4>
+              <a className="text-primary text-sm font-bold hover:underline cursor-pointer">View All Patients</a>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border border-red-200 p-4 rounded-xl shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="size-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">JD</div>
+                  <div>
+                    <p className="text-sm font-bold">John Doe</p>
+                    <p className="text-[10px] text-slate-500">ID: #88291 | Ward: ICU-B</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="size-2 block rounded-full bg-red-500"></span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">Heart Rate</p>
+                    <p className="text-sm font-bold text-red-600">102 bpm</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">SpO2</p>
+                    <p className="text-sm font-bold text-amber-500">94%</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] text-slate-400 italic font-medium text-center">Status: Escalated Monitoring</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="size-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">JS</div>
+                  <div>
+                    <p className="text-sm font-bold">Jane Smith</p>
+                    <p className="text-[10px] text-slate-500">ID: #88294 | Ward: Cardiac</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="size-2 block rounded-full bg-green-500"></span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">Heart Rate</p>
+                    <p className="text-sm font-bold">72 bpm</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">SpO2</p>
+                    <p className="text-sm font-bold text-primary">98%</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] text-slate-400 italic font-medium text-center">Status: Stable</p>
+              </div>
+
+              <div className="bg-white border border-amber-200 p-4 rounded-xl shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="size-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">RC</div>
+                  <div>
+                    <p className="text-sm font-bold">Robert Chen</p>
+                    <p className="text-[10px] text-slate-500">ID: #88302 | Ward: ER-2</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="size-2 block rounded-full bg-amber-500"></span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">Heart Rate</p>
+                    <p className="text-sm font-bold">88 bpm</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-[10px] font-bold text-slate-400">SpO2</p>
+                    <p className="text-sm font-bold text-amber-500">91%</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] text-slate-400 italic font-medium text-center">Status: Cautionary Alert</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 3D Digital Twin Map (Feature 4) */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                  <span className="material-symbols-outlined text-indigo-600">t_5g</span>
+                  3D Operational Digital Twin
+                </h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-1">St. Jude Wing A • Real-time Telemetry Overlay</p>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setTwinMode(!twinMode)}
+                  variant={twinMode ? "default" : "outline"} 
+                  className={`h-8 text-[10px] font-black uppercase tracking-widest ${twinMode ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : ''}`}
+                >
+                  {twinMode ? 'Isometric View' : 'Flat View'}
+                </Button>
+                <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                {['FL 1', 'FL 2', 'ICU'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveWard(f === 'ICU' ? 'ICU' : 'General Ward')}
+                    className={`px-3 h-8 rounded-lg text-[10px] font-black transition-all ${((f === 'ICU' && activeWard === 'ICU') || (f !== 'ICU' && activeWard === 'General Ward')) ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={`p-10 transition-all duration-700 ease-in-out ${twinMode ? 'perspective-[1200px]' : ''}`}>
+              <div 
+                className={`grid grid-cols-4 md:grid-cols-6 gap-6 transition-all duration-1000 ease-in-out ${twinMode ? 'rotate-x-[45deg] rotate-z-[-25deg] skew-x-[5deg] -translate-y-8' : ''}`}
+                style={{ transformStyle: 'preserve-3d' }}
+              >
+                {displayedBeds.map((bed) => {
+                  let statusColor = "bg-slate-200";
+                  let lightColor = "bg-slate-400";
+                  let icon = "bed";
+                  
+                  if (bed.status === 'Occupied') {
+                    statusColor = "bg-[#00b289]";
+                    lightColor = "bg-emerald-400";
+                    icon = "person";
+                  } else if (bed.status === 'Maintenance') {
+                    statusColor = "bg-red-500";
+                    lightColor = "bg-red-300";
+                    icon = "warning";
+                  }
+
+                  return (
+                    <div
+                      key={bed.id}
+                      onClick={() => openManageBed(bed)}
+                      className={`relative aspect-square rounded-xl cursor-pointer transition-all duration-300 group ${statusColor} ${twinMode ? 'shadow-[10px_10px_20px_rgba(0,0,0,0.1)]' : 'shadow-sm'}`}
+                      style={{ 
+                        transform: twinMode ? 'translateZ(20px)' : 'none',
+                        transformStyle: 'preserve-3d'
+                      }}
+                    >
+                      {/* 3D Depth Walls */}
+                      {twinMode && (
+                        <>
+                          <div className={`absolute bottom-0 left-0 w-full h-[15px] ${statusColor} brightness-75 origin-bottom rotate-x-[90deg] translate-y-[15px]`}></div>
+                          <div className={`absolute top-0 right-0 w-[15px] h-full ${statusColor} brightness-50 origin-right rotate-y-[90deg] translate-x-[15px]`}></div>
+                        </>
+                      )}
+
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
+                        <span className={`material-symbols-outlined text-white transition-transform duration-500 ${twinMode ? 'scale-110 -translate-y-1' : ''}`} style={{ fontSize: twinMode ? 28 : 20 }}>{icon}</span>
+                        <span className="text-[9px] font-black text-white/80 mt-1 uppercase tracking-tighter">{bed.id}</span>
+                      </div>
+
+                      {/* Status Indicator Pulse */}
+                      <div className={`absolute top-2 right-2 size-2 rounded-full ${lightColor} ${bed.status === 'Occupied' ? 'animate-pulse' : ''} shadow-[0_0_8px_currentColor]`}></div>
+                      
+                      {/* Hover Info */}
+                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 font-black uppercase tracking-widest shadow-xl">
+                        {bed.status}: {bed.patient || 'Vacant'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="px-8 pb-8 flex items-center justify-between">
+              <div className="flex items-center gap-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-slate-300"></span>
+                  Ready
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-[#00b289] animate-pulse"></span>
+                  Monitored
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-red-500"></span>
+                  Service
+                </div>
+              </div>
+              
+              <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-3">
+                 <div className="size-6 bg-indigo-600 rounded-full flex items-center justify-center">
+                   <span className="material-symbols-outlined text-white text-xs">analytics</span>
+                 </div>
+                 <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-tighter">AI Predicts 4 Admissions in Ward A by 18:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Dialog for Managing Beds */}
+        <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Manage Bed {selectedBed?.id}</DialogTitle>
+              <DialogDescription>
+                Update the operational status of {selectedBed?.ward} bed {selectedBed?.id}.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSaveBed}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label>Bed Status</Label>
+                  <select
+                    required
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                    value={editStatus}
+                    onChange={e => setEditStatus(e.target.value)}
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Occupied">Occupied</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                </div>
+                {editStatus === 'Occupied' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="patientName">Assigned Patient</Label>
+                    <Input
+                      id="patientName"
+                      value={editPatient}
+                      onChange={e => setEditPatient(e.target.value)}
+                      placeholder="e.g. Eleanor Vance"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsManageOpen(false)}>Cancel</Button>
+                <Button type="submit" className="bg-[#00b289] text-white hover:bg-[#00b289]/90">Save Status</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Right Column */}
+        <div className="col-span-12 lg:col-span-4 space-y-8">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100">
+              <h4 className="font-bold">On-Duty Staff</h4>
+            </div>
+            <div className="divide-y divide-slate-100">
+              <div className="p-4 flex items-center gap-4">
+                <div className="size-10 rounded-full bg-slate-200 bg-cover" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuD5XSs0dDJhFq-JkSlj_BkffdOgFpxvT7FwTjWaSeIN4BhpdetQapjV_hYU-X_TPo8sFQlAupOHfiH0kMyQ21ua_mRWCWis-NeWZYqSYUJAdrrQXcFqTondO7hEerI3CfqmU_dbrC9xqEpD2os9qDnRVXaOJImp_j2rHUfhqhWEILdO2eolZTBFoaoNKlCHOTPD_fqo4QnZ3krSZ35oz39edvnWQO1bts24Yyhsv3i7oZL2EZ1HLGvnVjrWEBTHO9iHB1GULkYE_7FS')" }}></div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">Dr. Marcus Thorne</p>
+                  <p className="text-xs text-slate-500">ER - Resident Physician</p>
+                </div>
+                <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">On Duty</span>
+              </div>
+              <div className="p-4 flex items-center gap-4">
+                <div className="size-10 rounded-full bg-slate-200 bg-cover" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDUVB_X4CHYyH30KdMRITSAZRwOTziVtxh3ozDrrYXcp96qV8GEdUPNkdgA__S6Lhj7NxeghOTJUR3AaWUWH_KtfPEaZZ9L5nK1xQDQVO0HePUf1JdttV2Qe0kkBfmUxg51GDBpOtnd14guPhCAQjpMpflpCDQTWtqJZOvLmj9br3SkJ-6avDfqLKeJTE75P4PLaK-oTp-K1yEZiEWd8C7Zwi0D05QyeFxN3xlKWY5h5IGr5hXJAKn_L_LYWMFUQhp7M7sVwkSEXaQO')" }}></div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">Elena Vance</p>
+                  <p className="text-xs text-slate-500">ICU - Head Nurse</p>
+                </div>
+                <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-1 rounded-full uppercase">At Lunch</span>
+              </div>
+              <div className="p-4 flex items-center gap-4">
+                <div className="size-10 rounded-full bg-slate-200 bg-cover" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuB7xAEg5oLuweutcm2KKNmdG8sK-SJf9inT48Y_Hd91p_O1nYx67n3yuau8QLXhDiXleZS0jJuF7TFWH9QKUC8SArOpWsrsOd5R0-938NrAzDc5vJ4bJyA0wM9JHFko7YmcxMOcgeFnxidM4KW02BBmpvYGw0450ZH5BIx_AQCQh29F2CJ91ySkJghw00mHnSa5jbtvc1Qorq05e-DslvWkxsUZrE0aQ6_HGU9ucp-lPq2BoRRvSyYmJMvHxqc2d5gqmrLUQVbbtfzm')" }}></div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">Dr. James Wilson</p>
+                  <p className="text-xs text-slate-500">Surgery - Consultant</p>
+                </div>
+                <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">On Duty</span>
+              </div>
+              <div className="p-4 flex items-center gap-4">
+                <div className="size-10 rounded-full bg-slate-200 bg-cover" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCPopkkVztIFB78wYgeYkI2tQOwt-m9sUvfQZaJYcxWPyohqd1C0Qh9l60u4ekEJERXs9bZfBIBgH4d529JG90DrmbSpLh9666xyjdxWB6XRlYdV5lrgu3W0FFv8ehayZ03qc6DlGbCb4VrOqG5DjFLHx4c8bxu35o9Vip4222pvDEXWoPXbexJdGWjtDJ7STEd1daHXbfKF3YtYxsZLOraH5EqID1bp4ioZoNrjfl3MoIiFTQZc983jIR-kx3LEmaTWdgoZt6ZIcDt')" }}></div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">Maria Garcia</p>
+                  <p className="text-xs text-slate-500">Admissions - Admin</p>
+                </div>
+                <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">On Duty</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h4 className="font-bold mb-6">Patient Admission Trends</h4>
+            <div className="h-48 flex items-end justify-between gap-2">
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[40%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">12</div>
+              </div>
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[60%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">18</div>
+              </div>
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[85%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">26</div>
+              </div>
+              <div className="flex-1 bg-primary rounded-t-lg h-[95%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">31</div>
+              </div>
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[50%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">15</div>
+              </div>
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[30%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">9</div>
+              </div>
+              <div className="flex-1 bg-primary/20 rounded-t-lg h-[45%] relative group">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">14</div>
+              </div>
+            </div>
+            <div className="flex justify-between mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+            <h4 className="text-sm font-bold text-blue-700 mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-lg">info</span>
+              System Bulletin
+            </h4>
+            <ul className="space-y-3">
+              <li className="text-xs text-blue-800 flex gap-2">
+                <span className="font-bold">•</span>
+                Backup power generator testing scheduled for Saturday 02:00 AM.
+              </li>
+              <li className="text-xs text-blue-800 flex gap-2">
+                <span className="font-bold">•</span>
+                New HIPAA compliance training modules available for all staff.
+              </li>
+              <li className="text-xs text-blue-800 flex gap-2">
+                <span className="font-bold">•</span>
+                ER capacity approaching peak due to regional accident.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Agent Floating Chat ── */}
+      <div className="fixed bottom-6 right-6 z-[1000] flex flex-col items-end gap-4">
+        {isAgentOpen ? (
+          <div className="w-[380px] h-[500px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
+            <div className="p-4 bg-indigo-600 text-white flex items-center justify-between shadow-lg">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-white p-1 bg-white/20 rounded-lg">local_hospital</span>
+                <div>
+                  <h4 className="text-sm font-bold">St. Jude AI Assistant</h4>
+                  <span className="text-[10px] opacity-75 whitespace-nowrap">Hospital Operations Specialist</span>
+                </div>
+              </div>
+              <button onClick={() => setIsAgentOpen(false)} className="hover:bg-white/20 p-1 rounded-full"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-slate-50 no-scrollbar">
+              {agentMessages.map((msg, i) => (
+                <div key={i} className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === 'human' ? 'self-end bg-indigo-600 text-white rounded-br-none' : 'self-start bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'}`}>
+                  {msg.text}
+                </div>
+              ))}
+              {isAgentTyping && (
+                <div className="self-start bg-white border border-slate-200 p-3 rounded-2xl rounded-bl-none flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-indigo-600" />
+                  <span className="text-xs text-slate-400">Consulting hospital database...</span>
+                </div>
+              )}
+              <div ref={el => el?.scrollIntoView({ behavior: 'smooth' })} />
+            </div>
+            <form onSubmit={e => {
+              e.preventDefault();
+              if (agentInput.trim() && !isAgentTyping) {
+                const t = agentInput; setAgentInput(''); handleAgentMessage(t);
+              }
+            }} className="p-4 bg-white border-t border-slate-100 flex gap-2 items-center">
+              <button type="button" onClick={toggleVoiceMode} className={`p-2 rounded-full transition-all ${voiceMode ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                {voiceMode ? (isListening ? <Mic className="animate-pulse" size={18} /> : <Loader2 className="animate-spin" size={18} />) : <MicOff size={18} />}
+              </button>
+              <input value={agentInput} onChange={e => setAgentInput(e.target.value)} placeholder="Inquire about beds or staff..." className="flex-1 bg-slate-100 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 ring-indigo-600/20 outline-none" />
+              <button type="submit" disabled={!agentInput.trim() || isAgentTyping} className="p-2 bg-indigo-600 text-white rounded-xl disabled:opacity-50 hover:bg-indigo-700 transition-colors">
+                <Send size={18} />
+              </button>
+            </form>
+          </div>
+        ) : (
+          <button onClick={() => setIsAgentOpen(true)} className="size-14 rounded-full bg-indigo-600 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
+            <span className="material-symbols-outlined" style={{ fontSize: 32 }}>clinical_notes</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
