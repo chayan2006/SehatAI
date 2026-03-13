@@ -3,6 +3,10 @@ import {
   TrendingUp, Clock, AlertTriangle, DollarSign, PlusCircle, ScanLine, Printer, 
   Package, Edit2, ClipboardList, User, CalendarX, Check, Brain, LineChart as LineChartIcon
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
 
 export default function DoctorPharmacy() {
   const [forecastMode, setForecastMode] = useState(false);

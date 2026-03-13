@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, PhoneCall, Ambulance, Clock, Activity, CheckCircle2, Video, FileText } from 'lucide-react';
+import { db } from '@/lib/database';
+
 
 const activeEmergencies = [
   { id: 1, patient: 'Eleanor Vance', age: 78, time: '10:45 AM (2 mins ago)', type: 'Critical Vitals', description: 'Sustained Heart Rate > 110 bpm for 15 minutes. Blood pressure elevated.', aiAction: 'Ambulance Dispatched & Caregiver Notified', status: 'In Progress' },
@@ -15,6 +17,20 @@ const aiEscalations = [
 ];
 
 export default function DoctorTriage() {
+  const [stats, setStats] = React.useState({ totalPatients: 0, activeEmergencies: 0 });
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const s = await db.getStats();
+        setStats(s);
+      } catch (err) {
+        console.error("Failed to fetch stats:", err);
+      }
+    };
+    fetchStats();
+  }, []);
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -39,7 +55,8 @@ export default function DoctorTriage() {
              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority Index</span>
              <Badge className="bg-red-600 text-white border-none font-black">CRITICAL</Badge>
            </div>
-           <h4 className="text-3xl font-black text-slate-900">9.8/10</h4>
+            <h4 className="text-3xl font-black text-slate-900">{stats.activeEmergencies > 0 ? (stats.activeEmergencies / 10).toFixed(1) : '0.0'}/10</h4>
+
            <div className="mt-4 flex items-center gap-2 text-red-600">
              <span className="material-symbols-outlined text-sm">trending_up</span>
              <span className="text-[11px] font-bold">Surge detected in Wing C</span>

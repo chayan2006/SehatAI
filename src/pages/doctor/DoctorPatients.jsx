@@ -20,6 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { db } from '@/lib/database';
 
 const initialPatients = [
   { id: 1, name: 'Eleanor Vance', age: 78, status: 'Critical', lastActive: '2 mins ago', condition: 'Arrhythmia', hr: 110, bp: '145/90', riskScore: 92, aiNotes: 'Sustained tachycardia detected.', ambulanceStatus: 'En Route', risks: { sepsis: 12, cardiac: 88, respiratory: 15 } },
@@ -32,6 +33,35 @@ const initialPatients = [
 
 export default function DoctorPatients() {
   const [patients, setPatients] = useState(initialPatients);
+
+  React.useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const data = await db.getPatients();
+        if (data && data.length > 0) {
+          // Map DB fields to component fields if necessary
+          const mapped = data.map(p => ({
+            id: p.id,
+            name: p.name,
+            age: p.age,
+            status: p.status,
+            lastActive: p.last_active || 'n/a',
+            condition: p.ward || 'Observation',
+            hr: 75,
+            bp: '120/80',
+            riskScore: p.status === 'Critical' ? 85 : 25,
+            aiNotes: 'Vitals stable.',
+            risks: { sepsis: 5, cardiac: 10, respiratory: 5 }
+          }));
+          setPatients(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to fetch patients:", err);
+      }
+    };
+    fetchPatients();
+  }, []);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [predictionMode, setPredictionMode] = useState(false);
   

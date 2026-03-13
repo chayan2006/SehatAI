@@ -3,6 +3,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
+import AIChat from '@/components/AIChat';
+
 import AnalyticsView from '../components/admin/AnalyticsView';
 import ResourcesView from '../components/admin/ResourcesView';
 import StaffView from '../components/admin/StaffView';
@@ -112,6 +114,7 @@ export default function AdminDashboard() {
     const [reviewedSecurityEvents, setReviewedSecurityEvents] = useState([]);
     const [showAdminProfile, setShowAdminProfile] = useState(false);
     const [aiInsights, setAiInsights] = useState({}); // Stores inline AI insights for escalations
+
     // ── Profile page states (lifted to survive 3s re-renders) ─────────────────────
     const [profileNotifSms, setProfileNotifSms] = useState(true);
     const [profileNotifEmail, setProfileNotifEmail] = useState(false);
@@ -137,19 +140,7 @@ export default function AdminDashboard() {
     const [cloudDist, setCloudDist] = useState({ usEast: 45, euWest: 30, asSouth: 25 });
 
     // ── Agent States ─────────────────────────────────────────────────────────────
-    const [isAgentOpen, setIsAgentOpen] = useState(false);
-    const [agentMessages, setAgentMessages] = useState([
-        { role: 'assistant', text: 'Hello Sarah. I am the SehatAI Admin Assistant. How can I help you manage the system today?' }
-    ]);
-    const [agentInput, setAgentInput] = useState('');
-    const [isAgentTyping, setIsAgentTyping] = useState(false);
     const [agentExecutor, setAgentExecutor] = useState(null);
-    const [isListening, setIsListening] = useState(false);
-    const [voiceMode, setVoiceMode] = useState(false);
-    const recognitionRef = useRef(null);
-    const handleMessageRef = useRef(null); // always points to latest handleAgentMessage
-    const voiceModeRef = useRef(false); // ref version to avoid stale closures inside callbacks
-    const transcriptRef = useRef('');   // captures transcript for auto-submit inside onend
 
     const notifRef = useRef(null);
     const settingsRef = useRef(null);
@@ -226,82 +217,12 @@ export default function AdminDashboard() {
         return () => clearInterval(interval);
     }, []);
 
-    // ── 2-Way Voice Chat ─────────────────────────────────────────────────
-    useEffect(() => {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return;
-        const r = new SR();
-        r.continuous = false;
-        r.interimResults = true;
-        r.lang = 'en-US';
-        r.onresult = (e) => {
-            let t = '';
-            for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
-            setAgentInput(t);
-            transcriptRef.current = t;
-        };
-        r.onerror = (e) => {
-            setIsListening(false);
-            if (e.error !== 'no-speech') showToast('Mic error: ' + e.error, 'error');
-        };
-        r.onend = () => {
-            setIsListening(false);
-            const captured = transcriptRef.current.trim();
-            if (captured && voiceModeRef.current) {
-                transcriptRef.current = '';
-                setAgentInput('');
-                // Use ref to avoid stale closure — always calls current handleAgentMessage
-                handleMessageRef.current?.(captured);
-            }
-        };
-        recognitionRef.current = r;
-    }, []); // eslint-disable-line
-
-    // Keep voiceModeRef in sync with voiceMode state
-    useEffect(() => {
-        voiceModeRef.current = voiceMode;
-        if (!voiceMode) {
-            recognitionRef.current?.stop();
-            window.speechSynthesis?.cancel();
-            setIsListening(false);
-            setAgentInput('');
-        }
-    }, [voiceMode]);
-
-    const startListeningOnce = () => {
-        if (!recognitionRef.current) return;
-        transcriptRef.current = '';
-        setAgentInput('');
-        try { recognitionRef.current.start(); setIsListening(true); } catch (_) { }
-    };
-
-    const toggleVoiceMode = () => {
-        if (voiceMode) {
-            setVoiceMode(false);
-            showToast('Voice chat ended.', 'info');
-        } else {
-            if (!recognitionRef.current) { showToast('Voice not supported in this browser.', 'error'); return; }
-            setVoiceMode(true);
-            showToast('Voice chat started! Say something…', 'success');
-            setTimeout(() => startListeningOnce(), 300);
-        }
-    };
-
-    const toggleListening = () => {
-        if (isListening) { recognitionRef.current?.stop(); setIsListening(false); }
-        else startListeningOnce();
-    };
-
     // ── Agent Initialization ─────────────────────────────────────────────────────
     useEffect(() => {
+
         const setupAgent = async () => {
             const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env?.GROQ_API_KEY : undefined);
-            console.log("Loaded GROQ API Key length:", apiKey?.length);
-            if (!apiKey) {
-                console.error("GROQ API KEY IS MISSING!");
-                setAgentMessages([{ role: 'assistant', text: "Error: GROQ API Key is missing from your .env file." }]);
-                return;
-            }
+            if (!apiKey) return;
 
             try {
                 const executor = await initAdminAgent({
@@ -403,75 +324,10 @@ export default function AdminDashboard() {
                 setAgentExecutor(executor);
             } catch (err) {
                 console.error("Groq Init Error:", err);
-                setAgentMessages([{ role: 'assistant', text: `Failed to connect to Groq: ${err.message}` }]);
             }
         };
         setupAgent();
-    }, []); // Run only once
-
-    // Always keep handleMessageRef pointing to the current handleAgentMessage
-    // This ensures the STT callback always calls the up-to-date version even after
-    // agentExecutor has been set asynchronously
-    useEffect(() => {
-        handleMessageRef.current = (text) => {
-            if (!agentExecutor) {
-                console.warn('Voice: agentExecutor not ready yet, ignoring:', text);
-                return;
-            }
-            handleAgentMessage(text);
-        };
-    }); // No deps array - runs after EVERY render to stay in sync
-
-    const handleAgentMessage = async (text) => {
-        if (!agentExecutor) return;
-        // Sync the ref so the STT callback always has the latest version
-        handleMessageRef.current = handleAgentMessage;
-        setIsAgentTyping(true);
-        setAgentMessages(prev => [...prev, { role: 'human', text }]);
-
-        try {
-            const response = await agentExecutor.invoke({
-                input: text,
-                chat_history: agentMessages.map(m =>
-                    m.role === 'human' ? ["human", m.text] : ["assistant", m.text]
-                ).slice(-10) // Keep last 10 messages for context
-            });
-
-            setAgentMessages(prev => [...prev, { role: 'assistant', text: response.output }]);
-
-            // ── Text-to-Speech (TTS) ──
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Stop current speech if any
-                // Clean up markdown characters so it sounds natural
-                const cleanText = response.output.replace(/[*_#`]/g, '');
-                const utterance = new SpeechSynthesisUtterance(cleanText);
-                utterance.lang = 'en-US';
-                utterance.rate = 1.05; // Slightly faster for an uplifting tone
-                utterance.pitch = 1.4; // Higher pitch for a sweeter sound
-                utterance.volume = 1.0;
-
-                // Try to grab a sweet, female voice if available
-                const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(v =>
-                    v.name.includes('Samantha') || // macOS natural sweet voice
-                    v.name.includes('Google UK English Female') ||
-                    v.name.includes('Microsoft Zira') || // Windows high-pitch female
-                    (v.lang.includes('en-') && v.name.includes('Female'))
-                );
-                if (preferredVoice) utterance.voice = preferredVoice;
-
-                // Restart mic after AI finishes speaking (2-way loop)
-                utterance.onend = () => { if (voiceModeRef.current) setTimeout(() => startListeningOnce(), 400); };
-                window.speechSynthesis.speak(utterance);
-            }
-
-        } catch (error) {
-            console.error("Agent Error:", error);
-            setAgentMessages(prev => [...prev, { role: 'assistant', text: `Error: ${error.message || JSON.stringify(error)}` }]);
-        } finally {
-            setIsAgentTyping(false);
-        }
-    };
+    }, []);
 
     const handleAskAI = async (e) => {
         if (!agentExecutor) {
@@ -2217,122 +2073,20 @@ export default function AdminDashboard() {
                 {renderContent()}
             </main>
 
-            {/* ── Agent Floating Chat ── */}
-            <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16 }}>
-                {isAgentOpen ? (
-                    <div style={{ width: 380, height: 500, background: 'white', borderRadius: 20, boxShadow: '0 12px 40px rgba(0,0,0,0.15)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.3s ease' }}>
-                        {/* Header */}
-                        <div style={{ padding: '16px 20px', background: '#10b77f', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Bot size={18} />
-                                </div>
-                                <div>
-                                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>SehatAI Assistant</h4>
-                                    <span style={{ fontSize: 10, opacity: 0.8 }}>Powered by Gemini 1.5 Pro</span>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsAgentOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 4 }}>
-                                <X size={18} />
-                            </button>
-                        </div>
+            {/* ── Agent Floating Chat (Shared Component) ── */}
+            {agentExecutor && (
+                <AIChat 
+                    agentExecutor={agentExecutor}
+                    title="SehatAI Admin Assistant"
+                    initialMessage="Hello Sarah. I am the SehatAI Admin Assistant. How can I help you manage the system today?"
+                    welcomeTitle="Admin Agentic Engine"
+                    themeColor="#10b77f"
+                    showImageUpload={false} // Admin doesn't need image upload for system stats
+                />
+            )}
 
-                        {/* Messages */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
-                            {agentMessages.map((msg, i) => (
-                                <div key={i} style={{ alignSelf: msg.role === 'human' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                                    <div style={{
-                                        padding: '10px 14px',
-                                        borderRadius: msg.role === 'human' ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                                        background: msg.role === 'human' ? '#10b77f' : 'white',
-                                        color: msg.role === 'human' ? 'white' : '#334155',
-                                        fontSize: 13,
-                                        lineHeight: 1.5,
-                                        boxShadow: msg.role === 'human' ? 'none' : '0 1px 2px rgba(0,0,0,0.05)',
-                                        border: msg.role === 'human' ? 'none' : '1px solid #e2e8f0'
-                                    }}>
-                                        {msg.text}
-                                    </div>
-                                </div>
-                            ))}
-                            {isAgentTyping && (
-                                <div style={{ alignSelf: 'flex-start', background: 'white', padding: '10px 14px', borderRadius: '16px 16px 16px 2px', border: '1px solid #e2e8f0', display: 'flex', gap: 4 }}>
-                                    <Loader2 size={14} className="animate-spin" style={{ color: '#10b77f' }} />
-                                    <span style={{ fontSize: 12, color: '#94a3b8' }}>SehatAI is thinking...</span>
-                                </div>
-                            )}
-                            <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
-                        </div>
-
-                        {/* Input */}
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                if (!agentInput.trim() || isAgentTyping) return;
-                                const text = agentInput;
-                                setAgentInput('');
-                                if (isListening) {
-                                    recognitionRef.current?.stop();
-                                    setIsListening(false);
-                                }
-                                handleAgentMessage(text);
-                            }}
-                            style={{ padding: 16, borderTop: '1px solid #e2e8f0', background: 'white', display: 'flex', gap: 10, alignItems: 'center' }}
-                        >
-                            {/* Voice Chat Toggle */}
-                            <button
-                                type="button"
-                                onClick={toggleVoiceMode}
-                                title={voiceMode ? 'End Voice Chat' : 'Start 2-way Voice Chat'}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px',
-                                    height: 36, borderRadius: 20, border: 'none', cursor: 'pointer',
-                                    fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.3s',
-                                    background: voiceMode
-                                        ? (isListening ? '#fee2e2' : (isAgentTyping ? '#fef9c3' : '#dcfce7'))
-                                        : '#f1f5f9',
-                                    color: voiceMode
-                                        ? (isListening ? '#dc2626' : (isAgentTyping ? '#ca8a04' : '#16a34a'))
-                                        : '#64748b',
-                                    animation: isListening ? 'pulse 1.2s infinite' : 'none',
-                                }}
-                            >
-                                {voiceMode
-                                    ? isListening
-                                        ? <><Mic size={14} /> Listening...</>
-                                        : isAgentTyping
-                                            ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Speaking...</>
-                                            : <><Mic size={14} /> Voice On</>
-                                    : <><MicOff size={14} /> Voice Chat</>
-                                }
-                            </button>
-                            <input
-                                value={agentInput}
-                                onChange={(e) => setAgentInput(e.target.value)}
-                                placeholder={isListening ? 'Listening... speak now' : voiceMode ? 'Voice active — or type' : 'Ask SehatAI to do something...'}
-                                style={{ flex: 1, border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 14px', fontSize: 13, outline: 'none' }}
-                            />
-                            <button
-                                type="submit"
-                                disabled={!agentInput.trim() || isAgentTyping}
-                                style={{ width: 36, height: 36, borderRadius: 10, background: '#10b77f', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: (!agentInput.trim() || isAgentTyping) ? 0.5 : 1 }}
-                            >
-                                <Send size={18} />
-                            </button>
-                        </form>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => setIsAgentOpen(true)}
-                        style={{ width: 56, height: 56, borderRadius: 28, background: '#10b77f', color: 'white', border: 'none', boxShadow: '0 8px 24px rgba(16,183,127,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s' }}
-                    >
-                        <MessageCircle size={28} />
-                    </button>
-                )}
-            </div>
 
             {overrideModal && <OverrideModal />}
-            {showAdminProfile && <AdminProfileModal />}
             <Toast />
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PatientMedications from './PatientMedications';
 import PatientAppointments from './PatientAppointments';
 import PatientHistory from './PatientHistory';
@@ -7,10 +7,32 @@ import PatientBookAmbulance from './PatientBookAmbulance';
 
 import PatientBookingConfirmation from './PatientBookingConfirmation';
 import Settings from '../Settings';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { initPatientAgent } from '@/lib/patientAgent';
+
+import AIChat from '@/components/AIChat';
+
 export default function PatientDashboard({ onLogout }) {
   const [activeNav, setActiveNav] = useState('dashboard');
+  const [agentExecutor, setAgentExecutor] = useState(null);
+
+  useEffect(() => {
+    const setupAgent = async () => {
+      try {
+        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+        if (apiKey) {
+          const executor = await initPatientAgent({ apiKey });
+          setAgentExecutor(executor);
+        }
+      } catch (error) {
+        console.error("Failed to initialize Patient AI:", error);
+      }
+    };
+    setupAgent();
+  }, []);
+
+
 
   const renderContent = () => {
     switch (activeNav) {
@@ -93,8 +115,20 @@ export default function PatientDashboard({ onLogout }) {
         <div className="flex-1 overflow-y-auto">
           {renderContent()}
         </div>
+
+        {/* AI Assistant */}
+        {agentExecutor && (
+          <AIChat 
+            agentExecutor={agentExecutor} 
+            title="SehatAI Health Companion"
+            initialMessage="Hi Alex! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!"
+            welcomeTitle="Patient Agentic Assistant"
+            themeColor="#10b77f"
+          />
+        )}
       </main>
     </div>
+
   );
 }
 
