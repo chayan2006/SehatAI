@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
@@ -6,6 +6,8 @@ import { TopNav } from '@/components/TopNav';
 import Login from '@/pages/Login';
 import PortalLogin from '@/pages/PortalLogin';
 import AdminLogin from '@/pages/AdminLogin';
+import { supabase } from '@/database/supabaseClient';
+import { userService } from '@/database/userService';
 
 // Admin Pages
 import Dashboard from '@/pages/Dashboard';
@@ -44,6 +46,46 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
   const [doctorTab, setDoctorTab] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check initial session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setRole(session.user.user_metadata.role || 'doctor');
+        setIsAuthenticated(true);
+      }
+      setLoading(false);
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setRole(session.user.user_metadata.role || 'doctor');
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+        setAuthStep('gateway');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-light">
+        <div className="flex flex-col items-center gap-4">
+          <div className="size-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-600 font-medium">Initializing SehatAI Secure Gateway...</p>
+        </div>
+      </div>
+    );
+  }
+
 
   const renderAdminContent = () => {
     switch (adminTab) {
@@ -156,21 +198,20 @@ export default function App() {
     return <AdminDashboard 
       role={role} 
       onRoleChange={(r) => setRole(r)} 
-      onLogout={() => {
-        setIsAuthenticated(false);
-        setAuthStep('gateway');
+      onLogout={async () => {
+        await userService.signOut();
       }} 
     />;
   }
 
   if (role === 'patient') {
     return <PatientDashboard 
-      onLogout={() => {
-        setIsAuthenticated(false);
-        setAuthStep('gateway');
+      onLogout={async () => {
+        await userService.signOut();
       }} 
     />;
   }
+
 
   return null;
 }

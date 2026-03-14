@@ -1,7 +1,42 @@
 import React, { useState } from 'react';
+import { userService } from '../database/userService';
+
 
 export default function AdminLogin({ onConfirm, onBack }) {
     const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [fullName, setFullName] = useState('');
+    const [institution, setInstitution] = useState('');
+    const [npi, setNpi] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+
+        try {
+            if (mode === 'signin') {
+                await userService.signIn({ email, password });
+            } else {
+                await userService.signUp({
+                    email,
+                    password,
+                    fullName,
+                    role: 'admin',
+                    hospitalName: institution, // Map institution to hospital name for admin
+                });
+            }
+            onConfirm();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
     if (mode === 'signup') {
         return (
@@ -34,37 +69,71 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                 <button className="flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-slate-900 transition-all">Sign Up</button>
                             </div>
 
-                            <form onSubmit={(e) => { e.preventDefault(); onConfirm(); }} className="space-y-4">
+                            <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="name">Admin Full Name</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">person</span>
-                                            <input className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="name" name="name" placeholder="Dr. Sarah Chen" required type="text" />
+                                            <input 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="name" name="name" placeholder="Dr. Sarah Chen" required type="text" 
+                                                value={fullName} onChange={(e) => setFullName(e.target.value)}
+                                            />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Professional Email</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email-signup">Professional Email</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">alternate_email</span>
-                                            <input autoComplete="email" className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="email" name="email" placeholder="s.chen@medical-center.org" required type="email" />
+                                            <input 
+                                                autoComplete="email" 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="email-signup" name="email" placeholder="s.chen@medical-center.org" required type="email" 
+                                                value={email} onChange={(e) => setEmail(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="password-signup">Password</label>
+                                        <div className="relative">
+                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
+                                            <input 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="password-signup" name="password" placeholder="••••••••" required type="password" 
+                                                value={password} onChange={(e) => setPassword(e.target.value)}
+                                            />
                                         </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="institution">Institution/Hospital Name</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">account_balance</span>
-                                            <input className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="institution" name="institution" placeholder="Central Health Institute" required type="text" />
+                                            <input 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="institution" name="institution" placeholder="Central Health Institute" required type="text" 
+                                                value={institution} onChange={(e) => setInstitution(e.target.value)}
+                                            />
                                         </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="npi">Authorized NPI Number / Verification Code</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">verified</span>
-                                            <input className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="npi" name="npi" placeholder="10-digit NPI or Secure Code" required type="text" />
+                                            <input 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="npi" name="npi" placeholder="10-digit NPI or Secure Code" required type="text" 
+                                                value={npi} onChange={(e) => setNpi(e.target.value)}
+                                            />
                                         </div>
                                     </div>
                                 </div>
+
+                                {error && (
+                                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl">
+                                        {error}
+                                    </div>
+                                )}
 
                                 <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex gap-3">
                                     <span className="material-symbols-outlined text-slate-400 text-lg">info</span>
@@ -73,11 +142,16 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                     </p>
                                 </div>
                                 <div className="pt-2">
-                                    <button className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-vital-green hover:bg-vital-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-vital-green transition-all" type="submit">
-                                        Create Secure Admin Account
+                                    <button 
+                                        className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-vital-green hover:bg-vital-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-vital-green transition-all disabled:opacity-50" 
+                                        type="submit"
+                                        disabled={loading}
+                                    >
+                                        {loading ? "Initializing..." : "Create Secure Admin Account"}
                                     </button>
                                 </div>
                             </form>
+
 
                             <div className="pt-8 mt-4 border-t border-slate-100 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -188,19 +262,24 @@ export default function AdminLogin({ onConfirm, onBack }) {
                         </div>
 
                         {/* Login Form */}
-                        <form onSubmit={(e) => { e.preventDefault(); onConfirm(); }} className="space-y-5">
+                        <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Admin Email</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email-signin">Admin Email</label>
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">alternate_email</span>
-                                        <input autoComplete="email" className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="email" name="email" placeholder="architect@institution.org" required type="email" />
+                                        <input 
+                                            autoComplete="email" 
+                                            className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                            id="email-signin" name="email" placeholder="architect@institution.org" required type="email" 
+                                            value={email} onChange={(e) => setEmail(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="block text-sm font-semibold text-slate-700" htmlFor="token">Security Token / Password</label>
-                                        <a
+                                        <button
                                             className="text-xs font-medium text-primary hover:text-primary/80 cursor-pointer"
                                             onClick={(e) => {
                                                 e.preventDefault();
@@ -208,18 +287,32 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                             }}
                                         >
                                             Reset Token?
-                                        </a>
+                                        </button>
                                     </div>
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">encrypted</span>
-                                        <input className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="token" name="token" placeholder="••••••••••••••••" required type="password" />
+                                        <input 
+                                            className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                            id="token" name="token" placeholder="••••••••••••••••" required type="password" 
+                                            value={password} onChange={(e) => setPassword(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             </div>
 
+                            {error && (
+                                <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl">
+                                    {error}
+                                </div>
+                            )}
+
                             <div className="pt-2">
-                                <button className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all" type="submit">
-                                    Initialize Secure Session
+                                <button 
+                                    className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50" 
+                                    type="submit"
+                                    disabled={loading}
+                                >
+                                    {loading ? "Initializing..." : "Initialize Secure Session"}
                                 </button>
                             </div>
 
@@ -252,6 +345,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                 </button>
                             </div>
                         </form>
+
 
                         {/* Bottom Emergency Alert / Status */}
                         <div className="pt-8 mt-4 border-t border-slate-100 flex items-center justify-between">

@@ -1,0 +1,4 @@
+--- 🗄️ List of Databases ---
+1. postgres
+2. ecommerce_db
+-----------------------------

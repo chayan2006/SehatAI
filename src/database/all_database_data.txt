@@ -1,0 +1,24 @@
+--- 🗄️ Supabase Database Data Export ---
+Export Time: 2026-03-14T16:04:28.205Z
+
+=== AUTHENTICATED USERS ===
+[Cannot fetch auth users with current API key - requires Service Role key]
+
+=== TABLE: PROFILES ===
+[Table does not exist or is not exposed via API]
+
+=== TABLE: USERS ===
+[Table does not exist or is not exposed via API]
+
+=== TABLE: HOSPITALS ===
+[Table does not exist or is not exposed via API]
+
+=== TABLE: DOMAINS ===
+[Table does not exist or is not exposed via API]
+
+=== TABLE: ROADMAPS ===
+[Table does not exist or is not exposed via API]
+
+=== TABLE: PROGRESS ===
+[Table does not exist or is not exposed via API]
+

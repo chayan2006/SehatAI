@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { userService } from "../database/userService";
+
 
 export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
   const [mode, setMode] = useState("signin");
@@ -18,10 +20,40 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
     return "doctor";
   };
 
-  const handleSubmit = (e) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [hospitalName, setHospitalName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin(getInternalRole(role));
+    setLoading(true);
+    setError(null);
+
+    const internalRole = getInternalRole(role);
+
+    try {
+      if (mode === "signin") {
+        await userService.signIn({ email, password });
+      } else {
+        await userService.signUp({
+          email,
+          password,
+          fullName: fullName || hospitalName, // Use hospital name as full name for simplicity if not provided
+          role: internalRole,
+          hospitalName: internalRole === "doctor" ? hospitalName : undefined,
+        });
+      }
+      onLogin(internalRole);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   return (
     <div className="bg-background-light font-display text-slate-900 min-h-screen">
@@ -83,6 +115,8 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                           placeholder="Enter hospital name"
                           type="text"
                           required
+                          value={hospitalName}
+                          onChange={(e) => setHospitalName(e.target.value)}
                         />
                       </div>
                     </div>
@@ -101,6 +135,8 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                           placeholder="Enter your name"
                           type="text"
                           required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
                         />
                       </div>
                     </div>
@@ -119,6 +155,8 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                           placeholder="Enter your name"
                           type="text"
                           required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
                         />
                       </div>
                     </div>
@@ -135,8 +173,10 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                       <input
                         className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-slate-400"
                         placeholder="Enter your credentials"
-                        type="text"
+                        type="email"
                         required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                   </div>
@@ -153,17 +193,18 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                         placeholder="••••••••"
                         type="password"
                         required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                       />
-                      <button
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary"
-                        type="button"
-                      >
-                        <span className="material-symbols-outlined">
-                          visibility
-                        </span>
-                      </button>
                     </div>
                   </div>
+
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+                      {error}
+                    </div>
+                  )}
+
 
                   {mode === "signin" && (
                     <div className="flex items-center justify-between py-2">
@@ -185,14 +226,18 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                     </div>
                   )}
                   <button
-                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     type="submit"
+                    disabled={loading}
                   >
-                    <span>{mode === "signin" ? "Sign In" : "Sign Up"}</span>
-                    <span className="material-symbols-outlined">
-                      {mode === "signin" ? "login" : "person_add"}
-                    </span>
+                    <span>{loading ? "Processing..." : mode === "signin" ? "Sign In" : "Sign Up"}</span>
+                    {!loading && (
+                      <span className="material-symbols-outlined">
+                        {mode === "signin" ? "login" : "person_add"}
+                      </span>
+                    )}
                   </button>
+
                 </form>
                 {/* Social Login */}
                 {mode === "signin" && (
