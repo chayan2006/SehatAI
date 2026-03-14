@@ -256,14 +256,14 @@ CREATE POLICY "Doctors view roadmaps" ON public.roadmaps FOR SELECT USING (EXIST
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 DECLARE
-  extracted_role user_role;
+  extracted_role public.user_role;
   extracted_hospital_name TEXT;
   new_hospital_id UUID;
 BEGIN
   -- 1. Determine Role Safely
-  IF NEW.raw_user_meta_data->>'role' = 'admin' THEN extracted_role := 'admin'::user_role;
-  ELSIF NEW.raw_user_meta_data->>'role' = 'doctor' THEN extracted_role := 'doctor'::user_role;
-  ELSE extracted_role := 'patient'::user_role; END IF;
+  IF NEW.raw_user_meta_data->>'role' = 'admin' THEN extracted_role := 'admin'::public.user_role;
+  ELSIF NEW.raw_user_meta_data->>'role' = 'doctor' THEN extracted_role := 'doctor'::public.user_role;
+  ELSE extracted_role := 'patient'::public.user_role; END IF;
 
   -- 2. Create Base Profile
   INSERT INTO public.profiles (id, role, full_name, email)
@@ -307,7 +307,7 @@ EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'SehatAI Trigger Failed to process user data: %', SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
