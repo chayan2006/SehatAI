@@ -260,10 +260,12 @@ DECLARE
   extracted_hospital_name TEXT;
   new_hospital_id UUID;
 BEGIN
+  -- 1. Determine Role Safely
   IF NEW.raw_user_meta_data->>'role' = 'admin' THEN extracted_role := 'admin'::user_role;
   ELSIF NEW.raw_user_meta_data->>'role' = 'doctor' THEN extracted_role := 'doctor'::user_role;
   ELSE extracted_role := 'patient'::user_role; END IF;
 
+  -- 2. Create Base Profile
   INSERT INTO public.profiles (id, role, full_name, email)
   VALUES (
     NEW.id,
@@ -272,19 +274,37 @@ BEGIN
     NEW.email
   );
 
+  -- 3. Execute EXACT Role logic (Do not mix Patient and Hospital logic)
   IF extracted_role = 'patient' THEN
+    -- Patient logic is simple: just add to patients table
     INSERT INTO public.patients (id) VALUES (NEW.id);
-  END IF;
+  
+  ELSIF extracted_role IN ('admin', 'doctor') THEN
+    extracted_hospital_name := NEW.raw_user_meta_data->>'hospital_name';
+    
+    IF extracted_hospital_name IS NOT NULL THEN
+      -- Check if hospital exists
+      SELECT id INTO new_hospital_id FROM public.hospitals WHERE hospital_name = extracted_hospital_name LIMIT 1;
+      
+      -- If it doesn't exist, create it (assign admin_id only if the user is an admin)
+      IF new_hospital_id IS NULL THEN
+        IF extracted_role = 'admin' THEN
+          INSERT INTO public.hospitals (admin_id, hospital_name) VALUES (NEW.id, extracted_hospital_name) RETURNING id INTO new_hospital_id;
+        ELSE 
+          -- A doctor signing up for a non-existent hospital. We leave admin_id NULL.
+          INSERT INTO public.hospitals (hospital_name) VALUES (extracted_hospital_name) RETURNING id INTO new_hospital_id;
+        END IF;
+      END IF;
 
-  extracted_hospital_name := NEW.raw_user_meta_data->>'hospital_name';
-  IF extracted_role IN ('admin', 'doctor') AND extracted_hospital_name IS NOT NULL THEN
-    SELECT id INTO new_hospital_id FROM public.hospitals WHERE hospital_name = extracted_hospital_name LIMIT 1;
-    IF new_hospital_id IS NULL THEN
-      INSERT INTO public.hospitals (admin_id, hospital_name) VALUES (NEW.id, extracted_hospital_name) RETURNING id INTO new_hospital_id;
+      -- Map the doctor/admin to the hospital
+      INSERT INTO public.hospital_staff (hospital_id, doctor_id) VALUES (new_hospital_id, NEW.id) ON CONFLICT DO NOTHING;
     END IF;
-    INSERT INTO public.hospital_staff (hospital_id, doctor_id) VALUES (new_hospital_id, NEW.id) ON CONFLICT DO NOTHING;
   END IF;
 
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Log the error to Postgres logs but DO NOT crash the Auth user creation process!
+  RAISE WARNING 'SehatAI Trigger Failed to process user data: %', SQLERRM;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
