@@ -3,7 +3,7 @@ import { Bell, Search, UserCircle, ShieldAlert, User, Stethoscope, X, Check, Act
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-export function TopNav({ role, onRoleChange, onLogout }) {
+export function TopNav({ role, onRoleChange, onLogout, user }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const dropdownRef = useRef(null);
@@ -187,10 +187,10 @@ export function TopNav({ role, onRoleChange, onLogout }) {
           >
             <div className="text-right hidden md:block">
               <p className="text-sm font-medium leading-none">
-                {role === 'patient' ? 'Eleanor Vance' : 'Dr. Sarah Jenkins'}
+                {user?.name || 'Loading...'}
               </p>
               <p className="text-xs text-slate-500">
-                {role === 'admin' ? 'System Administrator' : role === 'doctor' ? 'Chief Medical Officer' : 'Patient'}
+                {user?.role || 'User'}
               </p>
             </div>
             <UserCircle className="h-8 w-8 text-slate-400" />
@@ -201,10 +201,10 @@ export function TopNav({ role, onRoleChange, onLogout }) {
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 md:hidden">
                 <p className="text-sm font-medium leading-none">
-                  {role === 'patient' ? 'Eleanor Vance' : 'Dr. Sarah Jenkins'}
+                  {user?.name || 'Loading...'}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {role === 'admin' ? 'System Administrator' : role === 'doctor' ? 'Chief Medical Officer' : 'Patient'}
+                  {user?.role || 'User'}
                 </p>
               </div>
               <div className="p-2">

@@ -6,7 +6,7 @@ import {
   BarChart2, ShieldCheck, MessageSquare
 } from 'lucide-react';
 
-export function DoctorSidebar({ className, activeTab, onTabChange }) {
+export function DoctorSidebar({ className, activeTab, onTabChange, user }) {
   const mainNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
     { id: 'patients', label: 'Patient Management', icon: Users },
@@ -91,8 +91,8 @@ export function DoctorSidebar({ className, activeTab, onTabChange }) {
             style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAZyi6wRVH7rOiDaIljA0jMG-SLjzrTnX6uWbglYVRkplpyvp-C0KueyvZDu2GOCq9ryIrWLsu3BVTW59nAfUVwZTKJWc44VHWTOcy2xV3oSa_XaUCJYZtkciYopWn2aeMzWtBCnMoOOxjjoxo06SWW3nFcbD8GzOwGswxYWPx4whOLC6poO7H484xELqtQHj4tlDOZLAoPwVzlMLa8WU6J_xe6xZwEB6XsfBd1ldXAo1zzfuxfmGWTJvtzVeCAwH0HLqGaqof8el9j')" }}
           ></div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-bold truncate text-slate-900 dark:text-white">Dr. Sarah Miller</p>
-            <p className="text-xs text-slate-500 truncate">Chief Medical Officer</p>
+            <p className="text-sm font-bold truncate text-slate-900 dark:text-white">{user?.name || 'Loading...'}</p>
+            <p className="text-xs text-slate-500 truncate">{user?.role || 'User'}</p>
           </div>
         </div>
       </div>

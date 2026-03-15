@@ -1,8 +1,8 @@
 import React from 'react';
-import { Home, Pill, Calendar, Activity, Settings, PhoneCall, Ambulance } from 'lucide-react';
+import { Home, Pill, Calendar, Activity, Settings, PhoneCall, Ambulance, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function PatientSidebar({ className, activeTab, onTabChange }) {
+export function PatientSidebar({ className, activeTab, onTabChange, user }) {
   const navItems = [
     { id: 'dashboard', label: 'My Health', icon: Home },
     { id: 'medications', label: 'Medications', icon: Pill, badge: 1 },
@@ -44,20 +44,16 @@ export function PatientSidebar({ className, activeTab, onTabChange }) {
           </div>
         </div>
       </div>
-      <div className="px-3 py-2 mt-auto">
-        <div className="space-y-1">
-          <button
-            onClick={() => onTabChange('settings')}
-            className={cn(
-              "w-full flex items-center justify-start px-4 py-2 text-sm font-medium rounded-md transition-colors",
-              activeTab === 'settings'
-                ? "bg-blue-900/50 text-blue-300 hover:bg-blue-900/70"
-                : "hover:bg-blue-900/30 hover:text-white"
-            )}
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </button>
+
+      <div className="p-4 border-t border-blue-900 mt-auto">
+        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-900/50 cursor-pointer group transition-colors">
+          <div className="w-10 h-10 flex-shrink-0 rounded-full bg-blue-900 flex items-center justify-center text-blue-300 group-hover:text-white border border-blue-800">
+            <UserCircle className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-bold truncate text-white">{user?.name || 'Loading...'}</p>
+            <p className="text-xs text-blue-300 truncate">{user?.role || 'Patient'}</p>
+          </div>
         </div>
       </div>
     </div>

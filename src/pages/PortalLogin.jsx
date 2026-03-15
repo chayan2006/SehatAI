@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { userService } from "../database/userService";
+import { authService } from "../database/authService";
 
 
 export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
@@ -36,9 +36,9 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
 
     try {
       if (mode === "signin") {
-        await userService.signIn({ email, password });
+        await authService.signIn({ email, password });
       } else {
-        await userService.signUp({
+        await authService.signUp({
           email,
           password,
           fullName: fullName || hospitalName, // Use hospital name as full name for simplicity if not provided

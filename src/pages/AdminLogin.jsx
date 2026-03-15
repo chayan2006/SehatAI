@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { userService } from '../database/userService';
+import { authService } from '../database/authService';
 
 
 export default function AdminLogin({ onConfirm, onBack }) {
@@ -19,9 +19,9 @@ export default function AdminLogin({ onConfirm, onBack }) {
 
         try {
             if (mode === 'signin') {
-                await userService.signIn({ email, password });
+                await authService.signIn({ email, password });
             } else {
-                await userService.signUp({
+                await authService.signUp({
                     email,
                     password,
                     fullName,

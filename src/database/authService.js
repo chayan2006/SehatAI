@@ -1,12 +1,8 @@
 import { supabase } from './supabaseClient';
 
-export const userService = {
+export const authService = {
   // Sign Up
   async signUp({ email, password, fullName, role, hospitalName }) {
-    // Sign up the user with Supabase Auth
-    // The trigger `on_auth_user_created` in the DB will automatically:
-    // 1. Create a profile in public.profiles
-    // 2. Create a record in public.hospitals if the role is 'doctor'
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -14,15 +10,13 @@ export const userService = {
         data: {
           full_name: fullName,
           role: role,
-          hospital_name: hospitalName // Matches trigger: new.raw_user_meta_data->>'hospital_name'
+          hospital_name: hospitalName
         }
       }
     });
-
     if (authError) throw authError;
     return authData;
   },
-
 
   // Sign In
   async signIn({ email, password }) {
@@ -30,7 +24,6 @@ export const userService = {
       email,
       password,
     });
-    
     if (error) throw error;
     return data;
   },
@@ -55,7 +48,6 @@ export const userService = {
       .select('*')
       .eq('id', userId)
       .single();
-    
     if (error) throw error;
     return data;
   },
@@ -66,9 +58,19 @@ export const userService = {
       .from('profiles')
       .update(updates)
       .eq('id', userId);
-    
     if (error) throw error;
     return data;
+  },
+
+  // Get current user
+  async getCurrentUser() {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return user;
+  },
+
+  // Auth state change listener
+  onAuthChange(callback) {
+    return supabase.auth.onAuthStateChange(callback);
   }
 };
-

@@ -314,5 +314,120 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- ==============================================================================
+-- 11. ESCALATIONS TABLE (AI-Flagged Clinical Alerts)
+-- ==============================================================================
+
+-- Enum for escalation severity levels
+DO $$ BEGIN
+  CREATE TYPE escalation_severity AS ENUM ('low', 'medium', 'high', 'critical');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.escalations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  external_id TEXT UNIQUE,                                   -- e.g. "#PX-8812" (used in UI / agent output)
+  patient_id UUID REFERENCES public.patients(id) ON DELETE CASCADE,
+  doctor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  risk TEXT NOT NULL,                                        -- Human-readable risk description
+  agent_responsible TEXT,                                    -- Which AI agent raised this alert
+  severity escalation_severity DEFAULT 'medium',
+  override_reason TEXT,                                      -- If manually overridden by a doctor
+  overridden_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  overridden_at TIMESTAMPTZ,
+  resolved BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.escalations ENABLE ROW LEVEL SECURITY;
+
+-- Doctors and admins can view all escalations
+CREATE POLICY "Doctors view all escalations"
+  ON public.escalations FOR SELECT
+  USING (EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('doctor', 'admin')
+  ));
+
+-- Patients can only view their own escalations
+CREATE POLICY "Patients view own escalations"
+  ON public.escalations FOR SELECT
+  USING (auth.uid() = patient_id);
+
+-- Only doctors/admins can insert escalations
+CREATE POLICY "Doctors can insert escalations"
+  ON public.escalations FOR INSERT
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('doctor', 'admin')
+  ));
+
+-- Doctors/admins can update (override/resolve) escalations
+CREATE POLICY "Doctors can update escalations"
+  ON public.escalations FOR UPDATE
+  USING (EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('doctor', 'admin')
+  ));
+
+-- Auto-update updated_at on escalation changes
+CREATE OR REPLACE FUNCTION public.update_escalation_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS escalation_updated ON public.escalations;
+CREATE TRIGGER escalation_updated
+  BEFORE UPDATE ON public.escalations
+  FOR EACH ROW EXECUTE PROCEDURE public.update_escalation_timestamp();
+
+-- ==============================================================================
+-- 12. STAFF & ROSTERING (Personnel Management)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.hospital_staff (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE,
+  role TEXT DEFAULT 'Nurse',
+  department TEXT,
+  status TEXT DEFAULT 'On Duty',
+  avatar TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.staff_shifts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  staff_id UUID REFERENCES public.hospital_staff(id) ON DELETE CASCADE,
+  shift_date DATE NOT NULL,
+  shift_type TEXT NOT NULL, -- e.g. 'Morning', 'Evening', 'Night'
+  start_time TIME,
+  end_time TIME,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.hospital_staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staff_shifts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Hospital staff viewable by hospital members"
+  ON public.hospital_staff FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+CREATE POLICY "Hospital staff manageable by admins"
+  ON public.hospital_staff FOR ALL
+  USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+CREATE POLICY "Shifts viewable by hospital members"
+  ON public.staff_shifts FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+CREATE POLICY "Shifts manageable by admins"
+  ON public.staff_shifts FOR ALL
+  USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+-- ==============================================================================
 -- END OF SCRIPT
 -- ==============================================================================
