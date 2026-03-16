@@ -1,12 +1,16 @@
 import { supabase } from './supabaseClient';
 
 export const patientService = {
-  async getPatients(hospitalId) {
+  async getPatients(hospitalId, page = 0, pageSize = 10) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
     const { data, error } = await supabase
       .from('patients')
       .select('*')
       .eq('hospital_id', hospitalId)
-      .order('full_name', { ascending: true });
+      .order('full_name', { ascending: true })
+      .range(from, to);
     if (error) throw error;
     return data;
   },

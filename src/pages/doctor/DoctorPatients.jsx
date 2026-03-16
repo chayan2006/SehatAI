@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Toast, useToast } from '@/components/ui/Toast';
 import { patientService, aiService, authService, hospitalService } from '@/database';
+import { useApp } from '@/context/AppContext';
+import { BrandLoader } from '@/components/BrandLoader';
 
 // ── 20-patient demo dataset ──────────────────────────────────────────────────
 const DEMO_PATIENTS = [
@@ -81,6 +83,10 @@ export default function DoctorPatients() {
   const [newAge, setNewAge] = useState('');
   const [newCondition, setNewCondition] = useState('');
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 10;
+  const { hospital } = useApp();
   
   // Detail Dialog state
   const [selectedPatientForDetail, setSelectedPatientForDetail] = useState(null);
@@ -90,22 +96,18 @@ export default function DoctorPatients() {
     fetchPatients();
   }, []);
 
-  const fetchPatients = async () => {
+  const fetchPatients = async (reset = false) => {
     try {
-      setLoading(true);
-      const user = await authService.getCurrentUser();
-      if (!user) return;
-
-      const hospital = await hospitalService.getMyHospital();
-      
-      if (!hospital) {
-        setPatients([]);
-        return;
+      if (reset) {
+        setLoading(true);
+        setPage(0);
       }
-
-      const data = await patientService.getPatients(hospital.id);
       
-      // Transform DB records to component schema
+      if (!hospital) return;
+
+      const currentPage = reset ? 0 : page;
+      const data = await patientService.getPatients(hospital.id, currentPage, PAGE_SIZE);
+      
       const transformed = data.map(p => ({
         id: p.id,
         name: p.full_name,
@@ -118,10 +120,18 @@ export default function DoctorPatients() {
         ambulanceStatus: 'None',
         risks: { sepsis: 5, cardiac: 10, respiratory: 5 }
       }));
-      setPatients(transformed);
+
+      if (reset) {
+        setPatients(transformed);
+      } else {
+        setPatients(prev => [...prev, ...transformed]);
+      }
+      
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(prev => prev + 1);
     } catch (err) {
       console.error(err);
-      addToast('Failed to fetch patients', 'error');
+      addToast('Failed to sync medical registry', 'error');
     } finally {
       setLoading(false);
     }
@@ -322,10 +332,7 @@ export default function DoctorPatients() {
                 {loading ? (
                   <tr>
                     <td colSpan={5}>
-                      <div className="py-20 flex flex-col items-center justify-center text-slate-400">
-                        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-                        <p className="font-bold">Syncing with medical registry...</p>
-                      </div>
+                      <BrandLoader message="Syncing with medical registry" />
                     </td>
                   </tr>
                 ) : filtered.length === 0 && patients.length === 0 ? (
@@ -342,7 +349,7 @@ export default function DoctorPatients() {
                   </tr>
                 ) : null}
                 {!loading && filtered.map((patient) => (
-                  <tr key={patient.id} className="group hover:bg-slate-50/80 transition-all duration-200">
+                  <tr key={patient.id} className={`group hover:bg-slate-50/80 transition-all duration-200 ${patient.status === 'Critical' ? 'critical-triage-card' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className={`size-10 rounded-full flex items-center justify-center font-bold text-xs ${STATUS_COLOR[patient.status] || 'bg-slate-100 text-slate-500'}`}>
@@ -462,6 +469,17 @@ export default function DoctorPatients() {
               </tbody>
             </table>
           </div>
+          {!loading && hasMore && (
+            <div className="py-6 border-t border-slate-100 flex justify-center bg-slate-50/20">
+              <Button 
+                variant="outline" 
+                onClick={() => fetchPatients()}
+                className="font-black uppercase text-[10px] tracking-widest border-slate-200 text-slate-500 hover:bg-white"
+              >
+                Load More Patients
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -204,7 +204,7 @@ export default function DoctorTriage() {
 
         <div className="grid gap-4">
           {emergencies.map((alert) => (
-            <Card key={alert.id} className="border-red-200 border-l-4 bg-red-50/20 shadow-none">
+            <Card key={alert.id} className={`border-red-200 border-l-4 bg-red-50/20 shadow-none ${alert.severity === 'critical' ? 'critical-triage-card' : ''}`}>
               <CardHeader className="pb-3 flex flex-row items-start justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center space-x-2 mb-2">

@@ -33,3 +33,14 @@ body {
   background-size: 40px 40px;
   background-position: 0 0, 20px 20px;
 }
+
+@keyframes critical-glow {
+  0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); border-color: rgba(239, 68, 68, 0.8); }
+  100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); }
+}
+
+.critical-triage-card {
+  animation: critical-glow 2s infinite ease-in-out;
+  border-width: 2px !important;
+}
