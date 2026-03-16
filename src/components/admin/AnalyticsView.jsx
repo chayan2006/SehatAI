@@ -136,14 +136,13 @@ export default function AnalyticsView() {
         }
     };
 
-    // Fallback data (used when DB is empty)
     function generateFallbackAdmissions() {
         return Array.from({ length: 14 }, (_, i) => {
             const d = new Date(); d.setDate(d.getDate() - (13 - i));
             return {
                 name: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-                admissions: Math.floor(Math.random() * 20) + 5,
-                discharges: Math.floor(Math.random() * 15) + 3,
+                admissions: 0,
+                discharges: 0,
             };
         });
     }
@@ -151,17 +150,17 @@ export default function AnalyticsView() {
     function generateFallbackEscalations() {
         return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => ({
             name,
-            critical: Math.floor(Math.random() * 5),
-            warning: Math.floor(Math.random() * 8),
-            resolved: Math.floor(Math.random() * 12),
+            critical: 0,
+            warning: 0,
+            resolved: 0,
         }));
     }
 
     function generateFallbackStaffing() {
         return {
-            morning: Array.from({ length: 7 }, () => Math.floor(Math.random() * 60) + 20),
-            evening: Array.from({ length: 7 }, () => Math.floor(Math.random() * 70) + 30),
-            night: Array.from({ length: 7 }, () => Math.floor(Math.random() * 50) + 10),
+            morning: Array.from({ length: 7 }, () => 0),
+            evening: Array.from({ length: 7 }, () => 0),
+            night: Array.from({ length: 7 }, () => 0),
         };
     }
 

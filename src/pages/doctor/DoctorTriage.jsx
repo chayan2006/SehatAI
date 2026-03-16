@@ -54,7 +54,7 @@ export default function DoctorTriage() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
+      const hospital = await hospitalService.getMyHospital();
       if (!hospital) return;
 
       const data = await hospitalService.getEscalations(hospital.id);
@@ -73,7 +73,7 @@ export default function DoctorTriage() {
 
   const handleResolve = async (id, action, patientName, notes = '') => {
     setResolvingId(id);
-    addToast(`Resolving alert for ${patientName}...`, 'loading');
+    const lid = addToast(`Resolving alert for ${patientName}...`, 'loading', 3000);
     try {
       const user = await authService.getCurrentUser();
       // Using resolveEscalation from userService which handles timestamp and notes
@@ -82,9 +82,11 @@ export default function DoctorTriage() {
       setEmergencies(prev => prev.filter(e => e.id !== id));
       setEscalations(prev => prev.filter(e => e.id !== id));
       
+      removeToast(lid);
       addToast(`✓ Alert resolved: ${action}`, 'success');
       setIsOverrideOpen(false);
     } catch (err) {
+      removeToast(lid);
       addToast('Resolution failed', 'error');
     } finally {
       setResolvingId(null);
@@ -93,12 +95,14 @@ export default function DoctorTriage() {
 
   const handleAIAnalyze = async (escalation) => {
     setAnalyzingId(escalation.id);
-    addToast('Summoning AI Triage Engine...', 'loading');
+    const lid = addToast('Summoning AI Triage Engine...', 'loading', 3000);
     try {
       const analysis = await aiService.analyzeTriageEscalation(escalation);
       setAnalysisResult(prev => ({ ...prev, [escalation.id]: analysis }));
+      removeToast(lid);
       addToast('✓ AI Intelligence Received', 'success');
     } catch (err) {
+      removeToast(lid);
       addToast('AI Engine is overloaded', 'error');
     } finally {
       setAnalyzingId(null);

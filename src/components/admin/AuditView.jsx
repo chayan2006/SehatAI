@@ -1,23 +1,6 @@
 import React, { useState } from 'react';
 
-// Generate some mock historical logs
-const generateMockLogs = () => {
-    const logs = [];
-    const actions = ['SYSTEM_BOOT', 'AGENT_SPAWN', 'USER_LOGIN', 'DATA_EXPORT', 'CONFIG_CHANGE', 'OVERRIDE_AUTH', 'AI_CRITICAL_ANALYSIS'];
-    const users = ['System', 'Dr. S. Chen', 'Root', 'LangChain Edge', 'Agent-Sigma'];
-
-    for (let i = 0; i < 45; i++) {
-        logs.push({
-            id: `LOG-${Math.floor(1000 + Math.random() * 9000)}-${Date.now() - (i * 100000)}`,
-            action: actions[Math.floor(Math.random() * actions.length)],
-            time: new Date(Date.now() - (i * 3600000)).toLocaleString(),
-            user: users[Math.floor(Math.random() * users.length)],
-        });
-    }
-    return logs;
-};
-
-const INITIAL_LOGS = generateMockLogs();
+const INITIAL_LOGS = [];
 
 export default function AuditView({ liveLogs = [] }) {
     const [searchTerm, setSearchTerm] = useState('');

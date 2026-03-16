@@ -21,6 +21,7 @@ export function DoctorSidebar({ className, activeTab, onTabChange, user }) {
     { id: 'lab', label: 'Lab', icon: FlaskConical },
     { id: 'billing', label: 'Billing', icon: Receipt },
     { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+    { id: 'hospital-settings', label: 'Clinic Profile', icon: ShieldCheck },
   ];
 
   return (
@@ -85,14 +86,20 @@ export function DoctorSidebar({ className, activeTab, onTabChange, user }) {
       </nav>
       
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
-        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+        <div 
+          onClick={() => onTabChange('settings')}
+          className={cn(
+            "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer",
+            activeTab === 'settings' ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"
+          )}
+        >
           <div 
-            className="w-10 h-10 flex-shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center" 
+            className="w-10 h-10 flex-shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-2 border-white dark:border-slate-800 shadow-sm" 
             style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAZyi6wRVH7rOiDaIljA0jMG-SLjzrTnX6uWbglYVRkplpyvp-C0KueyvZDu2GOCq9ryIrWLsu3BVTW59nAfUVwZTKJWc44VHWTOcy2xV3oSa_XaUCJYZtkciYopWn2aeMzWtBCnMoOOxjjoxo06SWW3nFcbD8GzOwGswxYWPx4whOLC6poO7H484xELqtQHj4tlDOZLAoPwVzlMLa8WU6J_xe6xZwEB6XsfBd1ldXAo1zzfuxfmGWTJvtzVeCAwH0HLqGaqof8el9j')" }}
           ></div>
           <div className="flex-1 min-w-0 text-left">
             <p className="text-sm font-bold truncate text-slate-900 dark:text-white">{user?.name || 'Loading...'}</p>
-            <p className="text-xs text-slate-500 truncate">{user?.role || 'User'}</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 truncate tracking-tight">{user?.role || 'Clinician'}</p>
           </div>
         </div>
       </div>

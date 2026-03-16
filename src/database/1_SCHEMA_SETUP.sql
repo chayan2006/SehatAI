@@ -71,13 +71,22 @@ CREATE TABLE public.hospitals (
   contact_email TEXT,
   is_verified BOOLEAN DEFAULT FALSE,
   logo_url TEXT,
+  consultation_fee DECIMAL(12,2) DEFAULT 0.00,
+  rating DECIMAL(3,2) DEFAULT 0.00,
+  specialties TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2.3 Patients
 CREATE TABLE public.patients (
-  id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   hospital_id UUID REFERENCES public.hospitals(id) ON DELETE SET NULL,
   full_name TEXT,
+  age INTEGER,
+  condition TEXT,
+  status TEXT DEFAULT 'Stable',
+  risk_score INTEGER DEFAULT 0,
   external_id TEXT UNIQUE DEFAULT ('PX-' || upper(substring(gen_random_uuid()::text, 1, 6))),
   date_of_birth DATE,
   gender TEXT,
@@ -106,6 +115,7 @@ CREATE TABLE public.wards (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  type TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -210,8 +220,27 @@ CREATE TABLE public.billing_records (
   patient_id UUID REFERENCES public.patients(id) ON DELETE CASCADE,
   amount DECIMAL(12,2),
   status TEXT DEFAULT 'pending',
+  services TEXT,
+  provider TEXT,
   description TEXT,
   due_date DATE DEFAULT (CURRENT_DATE + 30),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.lab_results (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  patient_id UUID REFERENCES public.patients(id) ON DELETE CASCADE,
+  test_name TEXT NOT NULL,
+  category TEXT, -- Pathology, Radiology, etc.
+  result_value TEXT,
+  unit TEXT,
+  reference_range TEXT,
+  status TEXT DEFAULT 'Pending', -- Pending, Completed, Cancelled
+  doctor_notes TEXT,
+  ai_summary TEXT, -- SehatAI diagnostic summary
+  ordered_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

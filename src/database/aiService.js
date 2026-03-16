@@ -106,12 +106,7 @@ export const aiService = {
       const cleaned = text.replace(/```json|```/g, '').trim();
       return JSON.parse(cleaned);
     } catch (error) {
-      // Fallback logic for demo
-      return { 
-        sepsis: Math.floor(Math.random() * 30), 
-        cardiac: Math.floor(Math.random() * 40), 
-        respiratory: Math.floor(Math.random() * 25) 
-      };
+      return { sepsis: 0, cardiac: 0, respiratory: 0 };
     }
   },
 
@@ -132,6 +127,28 @@ export const aiService = {
       return result.response.text();
     } catch (error) {
       return "Unable to generate smart recommendations. Manual audit suggested.";
+    }
+  },
+
+  /**
+   * Generates a clinical summary for lab results.
+   */
+  async generateLabSummary(resultData, patientData) {
+    try {
+      const prompt = `
+        CLINICAL LAB ANALYSIS:
+        Patient: ${patientData?.full_name || 'General'}, Age: ${patientData?.age || 'N/A'}
+        Test: ${resultData.test_name} (${resultData.category})
+        Result: ${resultData.result_value} ${resultData.unit}
+        Reference: ${resultData.reference_range}
+        Notes: ${resultData.doctor_notes || 'None'}
+        
+        Task: Provide a 1-sentence diagnostic insight. If the result is outside the reference range, highlight clinical significance.
+      `;
+      const result = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      return "Diagnostic engine failure. Manual review advised.";
     }
   }
 };

@@ -94,9 +94,14 @@ CREATE TABLE public.hospitals (
 
 -- 2.3 Patients
 CREATE TABLE public.patients (
-  id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   hospital_id UUID REFERENCES public.hospitals(id) ON DELETE SET NULL,
   full_name TEXT,
+  age INTEGER,
+  condition TEXT,
+  status TEXT DEFAULT 'Stable',
+  risk_score INTEGER DEFAULT 0,
   external_id TEXT UNIQUE DEFAULT ('PX-' || upper(substring(gen_random_uuid()::text, 1, 6))),
   date_of_birth DATE,
   gender TEXT,
@@ -127,6 +132,7 @@ CREATE TABLE public.wards (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
   name TEXT NOT NULL, -- 'ICU', 'General Ward A', etc.
+  type TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

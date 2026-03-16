@@ -36,8 +36,9 @@ export function useToast() {
   const addToast = useCallback((message, type = 'info', duration = 3500) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, type }]);
-    if (type !== 'loading') {
-      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+    const timeout = type === 'loading' && duration === 3500 ? 0 : duration; 
+    if (timeout > 0) {
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), timeout);
     }
     return id;
   }, []);

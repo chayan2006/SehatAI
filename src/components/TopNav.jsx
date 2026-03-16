@@ -1,55 +1,65 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, UserCircle, ShieldAlert, User, Stethoscope, X, Check, Activity, Pill, Calendar, AlertTriangle, LogOut } from 'lucide-react';
+import { Bell, Search, ShieldAlert, User, Stethoscope, X, Check, Activity, Pill, Calendar, AlertTriangle, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { patientService, hospitalService } from '@/database';
+import { Loader2 } from 'lucide-react';
 
-export function TopNav({ role, onRoleChange, onLogout, user }) {
+export function TopNav({ role, onRoleChange, onLogout, user, onNavigate }) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ patients: [], staff: [] });
+  const [isSearching, setIsSearching] = useState(false);
   const dropdownRef = useRef(null);
-  const profileRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowNotifications(false);
       }
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
-        setShowProfileMenu(false);
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setSearchQuery('');
+        setSearchResults({ patients: [], staff: [] });
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const cycleRole = () => {
-    if (role === 'admin') onRoleChange('doctor');
-    else if (role === 'doctor') onRoleChange('patient');
-    else onRoleChange('admin');
-    setShowNotifications(false);
-  };
+  useEffect(() => {
+    const performSearch = async () => {
+      if (searchQuery.length < 2) {
+        setSearchResults({ patients: [], staff: [] });
+        return;
+      }
 
-  const getRoleButtonProps = () => {
-    switch (role) {
-      case 'admin':
-        return {
-          className: "text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100",
-          icon: <ShieldAlert className="mr-2 h-4 w-4" />,
-          text: "Switch Role (Admin)"
-        };
-      case 'doctor':
-        return {
-          className: "text-primary border-primary/30 bg-primary/10 hover:bg-primary/20",
-          icon: <Stethoscope className="mr-2 h-4 w-4" />,
-          text: "Switch Role (Doctor)"
-        };
-      case 'patient':
-        return {
-          className: "text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100",
-          icon: <User className="mr-2 h-4 w-4" />,
-          text: "Switch Role (Patient)"
-        };
-    }
+      setIsSearching(true);
+      try {
+        const hospital = await hospitalService.getMyHospital();
+        if (!hospital) return;
+
+        const [patients, staff] = await Promise.all([
+          patientService.searchPatients(hospital.id, searchQuery),
+          hospitalService.searchStaff(hospital.id, searchQuery)
+        ]);
+
+        setSearchResults({ patients, staff });
+      } catch (err) {
+        console.error('Search failed:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timer = setTimeout(performSearch, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleResultClick = (tab, id) => {
+    onNavigate(tab);
+    setSearchQuery('');
+    setSearchResults({ patients: [], staff: [] });
   };
 
   const patientNotifications = [
@@ -72,18 +82,74 @@ export function TopNav({ role, onRoleChange, onLogout, user }) {
   const notifications = role === 'patient' ? patientNotifications : role === 'doctor' ? doctorNotifications : adminNotifications;
   const unreadCount = notifications.filter(n => n.unread).length;
 
-  const buttonProps = getRoleButtonProps();
-
   return (
     <div className="border-b bg-white h-16 flex items-center px-6 justify-between sticky top-0 z-10">
       <div className="flex items-center w-full max-w-md">
-        <div className="relative w-full">
+        <div className="relative w-full" ref={searchRef}>
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <Input
             type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={role === 'patient' ? "Search health records..." : "Search patients, staff, or records..."}
             className="w-full pl-9 bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            </div>
+          )}
+
+          {/* Search Results Dropdown */}
+          {(searchResults.patients.length > 0 || searchResults.staff.length > 0) && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200">
+              <div className="max-h-[400px] overflow-y-auto">
+                {searchResults.patients.length > 0 && (
+                  <div className="p-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 py-2">Patients</p>
+                    {searchResults.patients.map(p => (
+                      <div 
+                        key={p.id} 
+                        onClick={() => handleResultClick('patients', p.id)}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group"
+                      >
+                        <div className="h-8 w-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
+                          {p.full_name?.split(' ').map(n=>n[0]).join('')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{p.full_name}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">ID: {p.external_id}</p>
+                        </div>
+                        <ChevronRight className="ml-auto h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {searchResults.staff.length > 0 && (
+                  <div className="p-2 border-t border-slate-50">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 py-2">Medical Staff</p>
+                    {searchResults.staff.map(s => (
+                      <div 
+                        key={s.id} 
+                        onClick={() => handleResultClick('staff', s.id)}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group"
+                      >
+                        <div className="h-8 w-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
+                          {s.name?.split(' ').map(n=>n[0]).join('')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{s.name}</p>
+                          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{s.role || 'Staff'}</p>
+                        </div>
+                        <ChevronRight className="ml-auto h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         {role === 'admin' && (
            <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-emerald-100 rounded-full ml-4 whitespace-nowrap">
@@ -92,17 +158,10 @@ export function TopNav({ role, onRoleChange, onLogout, user }) {
            </div>
         )}
       </div>
-      <div className="flex items-center space-x-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={cycleRole}
-          className={buttonProps.className}
-        >
-          {buttonProps.icon}
-          {buttonProps.text}
-        </Button>
 
+      <div className="flex items-center space-x-4">
+        {/* Role switching is now disabled to ensure session integrity */}
+        
         <div className="relative" ref={dropdownRef}>
           <Button
             variant="ghost"
@@ -161,66 +220,6 @@ export function TopNav({ role, onRoleChange, onLogout, user }) {
                 <Button variant="ghost" className="w-full text-sm text-slate-600 hover:text-slate-900 h-8">
                   Mark all as read
                 </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center space-x-2 border-l pl-4" ref={profileRef}>
-          {/* Admin Specific Action Bar */}
-          {role === 'admin' && (
-            <div className="hidden lg:flex items-center gap-4 mr-4 pr-4 border-r border-slate-200">
-               <div className="flex items-center gap-2 text-slate-500">
-                  <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                  <span className="text-xs font-medium">System: Optimal</span>
-               </div>
-               <Button className="bg-red-500 hover:bg-red-600 text-white h-8 text-xs font-bold px-3 py-1 flex items-center gap-1 transition-colors">
-                  <ShieldAlert className="h-3 w-3" />
-                  EMERGENCY
-               </Button>
-            </div>
-          )}
-
-          <div 
-            className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors"
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-          >
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-medium leading-none">
-                {user?.name || 'Loading...'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {user?.role || 'User'}
-              </p>
-            </div>
-            <UserCircle className="h-8 w-8 text-slate-400" />
-          </div>
-
-          {/* Profile Dropdown Menu */}
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 md:hidden">
-                <p className="text-sm font-medium leading-none">
-                  {user?.name || 'Loading...'}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {user?.role || 'User'}
-                </p>
-              </div>
-              <div className="p-2">
-                {onLogout && (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => {
-                        setShowProfileMenu(false);
-                        onLogout();
-                    }}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </Button>
-                )}
               </div>
             </div>
           )}

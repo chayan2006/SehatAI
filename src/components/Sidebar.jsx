@@ -47,7 +47,10 @@ export function Sidebar({ className, activeTab, onTabChange, user }) {
       </div>
       
       <div className="p-4 border-t border-slate-800 mt-auto">
-        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-900 cursor-pointer group">
+        <div 
+          onClick={() => onTabChange('settings')}
+          className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-900 cursor-pointer group transition-colors"
+        >
           <div className="w-10 h-10 flex-shrink-0 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 border border-slate-700">
             <UserCircle className="h-6 w-6" />
           </div>

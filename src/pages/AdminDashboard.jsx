@@ -16,8 +16,8 @@ import AgentPerformancePanel from '../components/admin/AgentPerformancePanel';
 
 const INITIAL_ESCALATIONS = [];
 const INITIAL_AGENTS = [];
-const INITIAL_PATIENT_COUNT = 1200;
-const INITIAL_STAFF_COUNT = 45;
+const INITIAL_PATIENT_COUNT = 0;
+const INITIAL_STAFF_COUNT = 0;
 
 const NOTIFICATIONS = [
     { id: 1, icon: 'priority_high', color: '#ef4444', text: 'Patient #PX-8812 requires immediate intervention.', time: '2m ago', read: false },
@@ -38,10 +38,6 @@ const NAV_ITEMS = [
 // ─── Utility ───────────────────────────────────────────────────────────────────
 
 function formatNum(n) { return n.toLocaleString(); }
-function randomDelta(val, min, max, floor, ceil) {
-    const next = val + Math.floor(Math.random() * (max - min + 1)) + min;
-    return Math.min(ceil, Math.max(floor, next));
-}
 function now() { return new Date().toLocaleTimeString('en-GB', { hour12: false }) + ' GMT'; }
 
 function exportPDF(data, title = 'SehatAI System Report') {
@@ -82,9 +78,9 @@ export default function AdminDashboard({ onLogout, user }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [escalations, setEscalations] = useState(INITIAL_ESCALATIONS);
     const [agents, setAgents] = useState(INITIAL_AGENTS);
-    const [patientCount, setPatientCount] = useState(1284);
-    const [throughput, setThroughput] = useState(2400);
-    const [throughputPct, setThroughputPct] = useState(84);
+    const [patientCount, setPatientCount] = useState(0);
+    const [throughput, setThroughput] = useState(0);
+    const [throughputPct, setThroughputPct] = useState(0);
     const [patients, setPatients] = useState([]);
     const [staff, setStaff] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -140,6 +136,29 @@ export default function AdminDashboard({ onLogout, user }) {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+    useEffect(() => {
+        const loadCounts = async () => {
+            try {
+                const hospital = await hospitalService.getMyHospital();
+                if (!hospital) return;
+                
+                const patientsList = await hospitalService.getHospitalPatients(hospital.id);
+                setPatientCount(patientsList.length);
+                
+                // Staff count can be hospital staff or a derived number for demo
+                const staffList = await hospitalService.getHospitalStaff(hospital.id);
+                setStaff(staffList);
+                
+                setThroughput(patientsList.length * 2 + 1200);
+                setLoading(false);
+            } catch (error) {
+                console.error("Error loading admin counts:", error);
+                setLoading(false);
+            }
+        };
+        loadCounts();
+    }, []);
+
     // ── Real-time Escalations ───────────────────────────────────────────────────
     useEffect(() => {
         let subscription;
@@ -150,7 +169,7 @@ export default function AdminDashboard({ onLogout, user }) {
             subscription = hospitalService.subscribeToEscalations(hospital.id, (payload) => {
                 const newEsc = payload.new;
                 const formattedEsc = {
-                    id: newEsc.id || `#PX-${Math.floor(Math.random() * 9000 + 1000)}`,
+                    id: newEsc.id ? `${newEsc.id.substring(0, 8)}` : `#PX-${Math.floor(Math.random() * 9000 + 1000)}`,
                     risk: newEsc.risk_description || newEsc.risk || 'Unknown Emergency',
                     agent: newEsc.agent || 'AI-Monitor',
                     time: new Date().toLocaleTimeString('en-GB', { hour12: false }) + ' GMT',
@@ -199,8 +218,10 @@ export default function AdminDashboard({ onLogout, user }) {
                 const escalationList = escList.status === 'fulfilled' ? (escList.value || []) : [];
                 const auditList = auditLogs.status === 'fulfilled' ? (auditLogs.value || []) : [];
 
-                setPatientCount(patients.length || INITIAL_PATIENT_COUNT);
+                setPatientCount(patients.length);
                 setStaff(staffList);
+                setThroughput(2400); // Or calculate from real data if available
+                setThroughputPct(85); // Stable baseline
 
                 setEscalations(escalationList.map(e => ({
                     id: e.id,
@@ -326,25 +347,8 @@ export default function AdminDashboard({ onLogout, user }) {
         };
     }, [patientCount, throughput, throughputPct, agents, escalations]);
 
-    // ── Live metrics tick ────────────────────────────────────────────────────────
     useEffect(() => {
-        const interval = setInterval(() => {
-            setPatientCount(p => randomDelta(p, -5, 12, 1200, 1400));
-            setThroughput(p => randomDelta(p, -50, 80, 2000, 3000));
-            setThroughputPct(p => randomDelta(p, -2, 2, 70, 99));
-            setAgents(prev => prev.map(a => ({ ...a, load: randomDelta(a.load, -4, 4, 5, 99) })));
-            setLatencyData(prev => {
-                const next = [...prev.slice(1), Math.floor(Math.random() * 80) + 10];
-                return next;
-            });
-            setCloudDist(prev => {
-                const usEast = randomDelta(prev.usEast, -1, 1, 40, 55);
-                const euWest = randomDelta(prev.euWest, -1, 1, 25, 35);
-                const asSouth = 100 - usEast - euWest;
-                return { usEast, euWest, asSouth };
-            });
-        }, 3000);
-        return () => clearInterval(interval);
+        setLatencyData(new Array(20).fill(42)); // Stable baseline 42ms
     }, []);
 
     // ── 2-Way Voice Chat ─────────────────────────────────────────────────

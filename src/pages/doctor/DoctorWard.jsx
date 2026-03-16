@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BedDouble, User, Activity, AlertTriangle, CheckCircle2, Clock, Loader2, ChevronRight, Building2 } from 'lucide-react';
+import { BedDouble, User, Activity, AlertTriangle, CheckCircle2, Clock, Loader2, ChevronRight, Building2, X } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { hospitalService, patientService, authService } from '@/database';
 
@@ -11,6 +11,7 @@ export default function DoctorWard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [assignmentModal, setAssignmentModal] = useState(null); // { wardId, bedId }
   const [transferModal, setTransferModal] = useState(null);     // { fromBedId, patientId, wardName, bedNumber }
+  const [lastError, setLastError] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -37,7 +38,7 @@ export default function DoctorWard() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
+      const hospital = await hospitalService.getMyHospital();
       if (!hospital) return;
 
       const [wardData, patientData] = await Promise.all([
@@ -70,14 +71,20 @@ export default function DoctorWard() {
 
   const assignPatientToBed = async (bedId, patientId, patientName) => {
     setIsProcessing(true);
-    addToast(`Assigning Bed to ${patientName}...`, 'loading');
+    const lid = addToast(`Assigning Bed to ${patientName}...`, 'loading', 3000);
+    setLastError(null);
     try {
       await hospitalService.updateBedStatus(bedId, 'occupied', patientId);
+      removeToast(lid);
       await loadData();
       addToast(`✓ Bed assigned to ${patientName}.`, 'success');
       setAssignmentModal(null);
     } catch (err) {
-      addToast('Assignment failed', 'error');
+      console.error('Assignment error:', err);
+      const msg = err.message || JSON.stringify(err);
+      setLastError(`ASSIGNMENT FAILED: ${msg}`);
+      removeToast(lid);
+      addToast('Assignment failed. Run SQL fix if column/permission error.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -85,17 +92,19 @@ export default function DoctorWard() {
 
   const handleTransfer = async (fromBedId, toBedId, patientId, patientName) => {
     setIsProcessing(true);
-    addToast(`Transferring ${patientName}...`, 'loading');
+    const lid = addToast(`Transferring ${patientName}...`, 'loading', 3000);
     try {
       // 1. Mark old bed as available
       await hospitalService.updateBedStatus(fromBedId, 'available', null);
       // 2. Mark new bed as occupied
       await hospitalService.updateBedStatus(toBedId, 'occupied', patientId);
       
+      removeToast(lid);
       await loadData();
       addToast(`✓ ${patientName} transferred successfully.`, 'success');
       setTransferModal(null);
     } catch (err) {
+      removeToast(lid);
       addToast('Transfer failed', 'error');
     } finally {
       setIsProcessing(false);
@@ -104,16 +113,61 @@ export default function DoctorWard() {
 
   const dischargePatient = async (wardId, bedId, patientName) => {
     setIsProcessing(true);
-    addToast(`Processing discharge for ${patientName}...`, 'loading');
+    const lid = addToast(`Processing discharge for ${patientName}...`, 'loading', 3000);
     try {
       await hospitalService.updateBedStatus(bedId, 'available', null);
+      removeToast(lid);
       await loadData();
       addToast(`✓ ${patientName} discharged. Bed is now available.`, 'success');
     } catch (err) {
+      removeToast(lid);
       addToast('Discharge failed', 'error');
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleQuickSetup = async () => {
+    setIsProcessing(true);
+    const lid = addToast('Bootstrapping Clinic Infrastructure...', 'loading', 3000);
+    try {
+      const hospital = await hospitalService.getMyHospital();
+      if (!hospital) throw new Error('Hospital context not found.');
+      
+      await hospitalService.seedHospitalInfrastructure(hospital.id);
+      await loadData();
+      removeToast(lid);
+      addToast('✓ Infrastructure created! ICU and General Wards are ready.', 'success');
+      setLastError(null);
+    } catch (err) {
+      console.error(err);
+      const msg = err.message || 'Unknown database error';
+      setLastError(msg);
+      addToast('Setup failed. Check the error in the box below.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const repairDatabase = () => {
+    const sqlToRun = `-- ⚡ INFRASTRUCTURE REPAIR SCRIPT ⚡
+-- Run this to fix missing "type" column and permissions for Ward/Bed management
+
+-- 1. ADD missing column
+ALTER TABLE public.wards ADD COLUMN IF NOT EXISTS type TEXT;
+
+-- 2. ENSURE Permissions
+DO $$
+DECLARE t TEXT;
+BEGIN
+    FOR t IN ('wards', 'beds') LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Global Demo Access" ON public.%I', t);
+        EXECUTE format('CREATE POLICY "Global Demo Access" ON public.%I FOR ALL USING (true) WITH CHECK (true)', t);
+    END LOOP;
+END $$;
+`;
+    setLastError(`REPAIR SQL: Copy this and run in Supabase SQL Editor:\n\n${sqlToRun}`);
   };
 
   if (loading) {
@@ -161,9 +215,38 @@ export default function DoctorWard() {
       {wards.length === 0 ? (
         <div className="py-20 bg-white rounded-2xl border border-dashed border-slate-200 flex flex-col items-center gap-4 text-center">
           <Building2 size={48} className="text-slate-200" />
-          <div>
-            <p className="font-bold text-slate-500">No wards configured</p>
-            <p className="text-sm text-slate-400">Add wards in the Administrator settings</p>
+          <div className="max-w-md">
+            <p className="font-bold text-slate-500 font-black uppercase tracking-widest text-lg">No wards configured</p>
+            <p className="text-sm text-slate-400 mb-6">Initialize your clinic with default ICU and General Medical wards.</p>
+            
+            {lastError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-left">
+                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                   <AlertTriangle size={12} /> Setup Error
+                </p>
+                <div className="max-h-40 overflow-y-auto">
+                    <pre className="text-[10px] font-mono whitespace-pre-wrap text-red-800 break-all bg-white/50 p-2 rounded border border-red-50/50">
+                        {lastError}
+                    </pre>
+                </div>
+                {lastError.toLowerCase().includes('column "type" does not exist') || lastError.toLowerCase().includes('type') ? (
+                  <button 
+                    onClick={repairDatabase}
+                    className="mt-3 w-full py-2 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 animate-pulse"
+                  >
+                    <Activity size={12} /> Get Repair SQL
+                  </button>
+                ) : null}
+              </div>
+            )}
+
+            <button 
+              onClick={handleQuickSetup}
+              disabled={isProcessing}
+              className="px-8 py-3 bg-[#00b289] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 disabled:opacity-50"
+            >
+              Quick Setup Infrastructure
+            </button>
           </div>
         </div>
       ) : wards.map(ward => (
@@ -185,7 +268,8 @@ export default function DoctorWard() {
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {(ward.beds || []).map((bed) => {
               if (bed.status === 'occupied') {
-                const p = bed.patients;
+                const patientData = bed.patients;
+                const p = Array.isArray(patientData) ? patientData[0] : patientData;
                 return (
                   <div key={bed.id} className="bg-white rounded-xl border border-slate-200 p-5 group hover:border-[#00b289]/40 transition-all shadow-sm">
                     <div className="flex justify-between items-center mb-5">
@@ -257,25 +341,48 @@ export default function DoctorWard() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-xs text-slate-500">Select a patient for immediate ward placement.</p>
+              
+              {lastError && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl mb-4">
+                    <p className="text-[10px] font-black text-red-600 uppercase mb-2">Error during assignment:</p>
+                    <pre className="text-[9px] font-mono text-red-800 whitespace-pre-wrap break-all">{lastError}</pre>
+                    <button 
+                        onClick={repairDatabase}
+                        className="mt-3 w-full py-2 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 animate-pulse"
+                    >
+                        <Activity size={12} /> Get Global Repair SQL
+                    </button>
+                </div>
+              )}
+
               <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
                 {patients.filter(p => !allBeds.some(b => b.patient_id === p.id)).map(p => (
                   <button 
                     key={p.id}
+                    disabled={isProcessing}
                     onClick={() => assignPatientToBed(assignmentModal.bedId, p.id, p.full_name)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-[#00b289] hover:bg-emerald-50 text-left transition-all group"
+                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-[#00b289] hover:bg-emerald-50 text-left transition-all group disabled:opacity-50"
                   >
                     <div className="h-8 w-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-white transition-colors">
                       <User size={16} />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">{p.full_name}</p>
-                      <p className="text-[10px] font-black text-slate-400 uppercase">External ID: {p.external_id}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase">ID: {p.external_id || 'PX-XXXX'}</p>
                     </div>
                     <ChevronRight size={14} className="ml-auto text-slate-300 group-hover:text-[#00b289]" />
                   </button>
                 ))}
                 {patients.filter(p => !allBeds.some(b => b.patient_id === p.id)).length === 0 && (
-                  <p className="py-8 text-center text-slate-400 text-sm font-bold italic">No unassigned patients found.</p>
+                  <div className="py-12 text-center space-y-4">
+                    <div className="p-4 bg-slate-50 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
+                        <User size={32} className="text-slate-200" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-black text-slate-500 uppercase tracking-widest">No candidates</p>
+                        <p className="text-[10px] text-slate-400 mt-1 max-w-[180px] mx-auto">Either all patients are admitted or none match your clinic's registration.</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

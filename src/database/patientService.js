@@ -15,10 +15,9 @@ export const patientService = {
     const { data, error } = await supabase
       .from('patients')
       .insert([patientData])
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async updatePatient(patientId, updates) {
@@ -26,10 +25,9 @@ export const patientService = {
       .from('patients')
       .update(updates)
       .eq('id', patientId)
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async deletePatient(patientId) {
@@ -56,10 +54,9 @@ export const patientService = {
     const { data, error } = await supabase
       .from('vital_readings')
       .insert([vitalsData])
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   subscribeToVitals(patientId, callback) {
@@ -71,5 +68,28 @@ export const patientService = {
         callback
       )
       .subscribe();
+  },
+
+  async searchPatients(hospitalId, query) {
+    if (!query) return [];
+    console.log('Searching patients:', query);
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('hospital_id', hospitalId)
+      .ilike('full_name', `%${query}%`);
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getMedicalRecords(patientId) {
+    const { data, error } = await supabase
+      .from('medical_records')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('visit_date', { ascending: false });
+    if (error) throw error;
+    return data;
   }
 };

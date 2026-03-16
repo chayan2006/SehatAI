@@ -1,31 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-const INITIAL_SCHEDULE = [
-  { id: 1, time: '08:00', period: 'AM', name: 'Atorvastatin - 20mg', instructions: 'Take with food', icon: 'restaurant', extra: 'Oral Tablet', extraIcon: 'local_pharmacy', taken: false, disabled: false },
-  { id: 2, time: '09:30', period: 'AM', name: 'Lisinopril - 10mg', instructions: 'Take with water', icon: 'water_drop', extra: null, taken: false, disabled: false },
-  { id: 3, time: '08:00', period: 'PM', name: 'Metformin - 500mg', instructions: 'Refill required within 48 hours', icon: 'warning', extra: null, urgent: true, taken: false, disabled: true },
-];
-
-const HISTORY_ALL = [
-  { name: 'Amoxicillin', type: 'Antibiotic', dose: '500 mg', dates: 'Oct 01 – Oct 10, 2023', doctor: 'Dr. Sarah Smith', status: 'COMPLETED' },
-  { name: 'Ibuprofen', type: 'Pain Relief', dose: '400 mg', dates: 'Aug 15 – Aug 20, 2023', doctor: 'Dr. Alex Chen', status: 'DISCONTINUED' },
-  { name: 'Claritin', type: 'Allergy', dose: '10 mg', dates: 'Apr 10 – Jun 30, 2023', doctor: 'Dr. Sarah Smith', status: 'COMPLETED' },
-  { name: 'Azithromycin', type: 'Antibiotic', dose: '250 mg', dates: 'Jan 05 – Jan 10, 2023', doctor: 'Dr. James Chen', status: 'COMPLETED' },
-  { name: 'Cetirizine', type: 'Allergy', dose: '10 mg', dates: 'Mar 01 – May 31, 2023', doctor: 'Dr. Amy Watson', status: 'COMPLETED' },
-];
+import { patientService } from '../../database/patientService';
+import { authService } from '../../database/authService';
 
 export default function PatientMedications({ onNavigate }) {
-  const [showReminder, setShowReminder] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [schedule, setSchedule] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [showReminder, setShowReminder] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
-  const [schedule, setSchedule] = useState(INITIAL_SCHEDULE);
   const [showRefillModal, setShowRefillModal] = useState(false);
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
   const [refillSubmitted, setRefillSubmitted] = useState(false);
   const [snoozeActive, setSnoozeActive] = useState(false);
   const [historyShown, setHistoryShown] = useState(3);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    loadMedicationData();
+  }, []);
+
+  const loadMedicationData = async () => {
+    try {
+      setLoading(true);
+      const user = await authService.getCurrentUser();
+      if (!user) return;
+
+      const records = await patientService.getMedicalRecords(user.id);
+      
+      const allPrescriptions = records
+        .filter(r => r.prescription_data)
+        .map(r => ({
+          ...r.prescription_data,
+          date: r.visit_date,
+          diagnosis: r.diagnosis,
+          recordId: r.id
+        }));
+
+      const mockSchedule = allPrescriptions.slice(0, 3).map((p, i) => ({
+        id: i + 1,
+        time: i === 0 ? '08:00' : i === 1 ? '02:00' : '08:00',
+        period: i === 0 ? 'AM' : i === 1 ? 'PM' : 'PM',
+        name: `${p.medication} - ${p.dosage}`,
+        instructions: p.frequency || 'Take as directed',
+        icon: 'pill',
+        taken: false,
+        disabled: false
+      }));
+
+      setSchedule(mockSchedule);
+      setHistory(allPrescriptions);
+
+      if (mockSchedule.some(s => s.period === 'AM')) {
+        setTimeout(() => setShowReminder(true), 1000);
+      }
+
+    } catch (error) {
+      console.error("Error loading medication data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const takenCount = schedule.filter(s => s.taken).length;
   const totalEnabled = schedule.filter(s => !s.disabled).length;
@@ -42,7 +78,9 @@ export default function PatientMedications({ onNavigate }) {
   };
 
   const handleModalTaken = () => {
-    markTaken(1); // Atorvastatin from modal
+    if (schedule.length > 0) {
+      markTaken(schedule[0].id);
+    }
     setShowReminder(false);
   };
 
@@ -61,11 +99,11 @@ export default function PatientMedications({ onNavigate }) {
   const exportHistory = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text('Medication History – Alex Johnson', 14, 22);
+    doc.text('Medication History', 14, 22);
     autoTable(doc, {
       startY: 32,
-      head: [['Medication', 'Dosage', 'Dates', 'Doctor', 'Status']],
-      body: HISTORY_ALL.map(h => [h.name, h.dose, h.dates, h.doctor, h.status]),
+      head: [['Medication', 'Dosage', 'Dates', 'Diagnosis', 'Status']],
+      body: history.map(h => [h.medication, h.dosage, new Date(h.date).toLocaleDateString(), h.diagnosis || 'N/A', 'ACTIVE']),
       theme: 'grid',
       headStyles: { fillColor: [16, 183, 127] },
     });
@@ -92,7 +130,7 @@ export default function PatientMedications({ onNavigate }) {
       )}
 
       {/* Medication Reminder Modal */}
-      {showReminder && (
+      {showReminder && schedule.length > 0 && (
         <div className="fixed inset-0 z-150 flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowReminder(false)}></div>
           <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
@@ -101,14 +139,14 @@ export default function PatientMedications({ onNavigate }) {
                 <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: '"FILL" 1' }}>pill</span>
               </div>
               <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Medication Reminder</h2>
-              <p className="text-primary font-bold mt-1">Scheduled for 08:00 AM</p>
+              <p className="text-primary font-bold mt-1">Scheduled for {schedule[0].time} {schedule[0].period}</p>
             </div>
             <div className="p-8 space-y-6">
               <div className="text-center">
-                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Atorvastatin - 20mg</h3>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{schedule[0].name}</h3>
                 <div className="flex items-center justify-center gap-2 mt-2 text-slate-500">
-                  <span className="material-symbols-outlined text-sm">restaurant</span>
-                  <p className="text-sm font-medium">Take with food for better absorption.</p>
+                  <span className="material-symbols-outlined text-sm">info</span>
+                  <p className="text-sm font-medium">{schedule[0].instructions}</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -120,11 +158,6 @@ export default function PatientMedications({ onNavigate }) {
                   <span className="material-symbols-outlined text-xl">timer</span>
                   Remind Me in 15 Min
                 </button>
-                <div className="flex items-center gap-3 pt-2">
-                  <button onClick={handleSnooze} className="flex-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold py-2 transition-colors cursor-pointer">Snooze</button>
-                  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
-                  <button onClick={() => setShowReminder(false)} className="flex-1 text-slate-400 hover:text-red-500 text-sm font-bold py-2 transition-colors cursor-pointer">Dismiss</button>
-                </div>
               </div>
             </div>
           </div>
@@ -144,12 +177,13 @@ export default function PatientMedications({ onNavigate }) {
                   <p className="text-sm text-slate-500 mt-1">Select medications to refill</p>
                 </div>
                 <div className="space-y-3">
-                  {['Atorvastatin – 20mg', 'Lisinopril – 10mg', 'Metformin – 500mg'].map((med) => (
-                    <label key={med} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/40 cursor-pointer transition-colors">
+                  {history.slice(0, 3).map((med, i) => (
+                    <label key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/40 cursor-pointer transition-colors">
                       <input type="checkbox" defaultChecked className="accent-primary size-4" />
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{med}</span>
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{med.medication} – {med.dosage}</span>
                     </label>
                   ))}
+                  {history.length === 0 && <p className="text-center text-sm text-slate-400">No prescriptions found.</p>}
                 </div>
                 <div className="space-y-2">
                   <button onClick={handleRefillSubmit} className="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-xl font-bold transition-all cursor-pointer">Submit Request</button>
@@ -399,40 +433,48 @@ export default function PatientMedications({ onNavigate }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                {HISTORY_ALL.slice(0, historyShown).map((h) => (
-                  <tr key={h.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400">
+                    No medication history found.
+                  </td>
+                </tr>
+              ) : (
+                history.slice(0, historyShown).map((h, i) => (
+                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-bold text-[13px] text-slate-900 dark:text-white">{h.name}</p>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">{h.type}</p>
+                      <p className="font-bold text-[13px] text-slate-900 dark:text-white">{h.medication}</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">{h.diagnosis || 'Active'}</p>
                       <div className="sm:hidden text-[11px] text-slate-500 mt-2 space-y-0.5">
-                        <p>{h.dates}</p>
-                        <p>{h.doctor}</p>
+                        <p>{new Date(h.date).toLocaleDateString()}</p>
+                        <p>Refills Available</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-[13px] font-semibold text-slate-600 dark:text-slate-300">{h.dose}</td>
-                    <td className="px-6 py-4 text-[13px] font-medium text-slate-500 hidden sm:table-cell">{h.dates}</td>
-                    <td className="px-6 py-4 text-[13px] font-medium text-slate-500 hidden md:table-cell">{h.doctor}</td>
+                    <td className="px-6 py-4 text-[13px] font-semibold text-slate-600 dark:text-slate-300">{h.dosage}</td>
+                    <td className="px-6 py-4 text-[13px] font-medium text-slate-500 hidden sm:table-cell">{new Date(h.date).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-[13px] font-medium text-slate-500 hidden md:table-cell">SehatAI AI</td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-black tracking-wider px-2.5 py-1.5 rounded-md border block w-max ${h.status === 'DISCONTINUED' ? 'bg-red-50 dark:bg-red-900/10 text-red-500 border-red-100 dark:border-red-900/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
-                        {h.status}
+                      <span className={`text-[10px] font-black tracking-wider px-2.5 py-1.5 rounded-md border block w-max bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700`}>
+                        ACTIVE
                       </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-6 py-5 bg-slate-50/50 dark:bg-slate-800/20 text-center border-t border-slate-100 dark:border-slate-800/50">
-            {historyShown < HISTORY_ALL.length ? (
-              <button onClick={() => setHistoryShown(HISTORY_ALL.length)} className="text-sm font-bold text-slate-500 hover:text-primary transition-colors cursor-pointer">
-                Load {HISTORY_ALL.length - historyShown} more records
-              </button>
-            ) : (
-              <button onClick={() => setHistoryShown(3)} className="text-sm font-bold text-slate-500 hover:text-primary transition-colors cursor-pointer">
-                Show less
-              </button>
-            )}
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-5 bg-slate-50/50 dark:bg-slate-800/20 text-center border-t border-slate-100 dark:border-slate-800/50">
+          {historyShown < history.length ? (
+            <button onClick={() => setHistoryShown(history.length)} className="text-sm font-bold text-slate-500 hover:text-primary transition-colors cursor-pointer">
+              Load {history.length - historyShown} more records
+            </button>
+          ) : (
+            <button onClick={() => setHistoryShown(3)} className="text-sm font-bold text-slate-500 hover:text-primary transition-colors cursor-pointer">
+              Show less
+            </button>
+          )}
+        </div>
         </section>
       </div>
     </>

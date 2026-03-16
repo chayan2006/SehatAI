@@ -96,7 +96,9 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                   <p className="text-slate-500">
                     {mode === "signin"
                       ? `Access your ${role} portal securely.`
-                      : `Join Sehat AI to manage your ${role} operations.`}
+                      : role === "Patient"
+                        ? "Join Sehat AI to track your health and manage vitals."
+                        : `Join Sehat AI to manage your ${role} operations.`}
                   </p>
                 </div>
                 {/* Login Fields */}
@@ -282,7 +284,9 @@ export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
                       setMode(mode === "signin" ? "signup" : "signin")
                     }
                   >
-                    {mode === "signin" ? "Register your hospital" : "Sign in"}
+                    {mode === "signin" 
+                      ? role === "Patient" ? "Create a patient account" : "Register your hospital"
+                      : "Already have an account? Sign in"}
                   </button>
                 </p>
               </div>

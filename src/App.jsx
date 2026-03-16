@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { PatientSidebar } from '@/components/PatientSidebar';
 import { DoctorSidebar } from '@/components/DoctorSidebar';
@@ -7,9 +7,9 @@ import Login from '@/pages/Login';
 import PortalLogin from '@/pages/PortalLogin';
 import AdminLogin from '@/pages/AdminLogin';
 import { authService } from '@/database';
+import { Toast, useToast } from '@/components/ui/Toast';
 
 // Admin Pages
-import Dashboard from '@/pages/Dashboard';
 import AdminDashboard from '@/pages/AdminDashboard';
 import Patients from '@/pages/Patients';
 import EmergencyAlerts from '@/pages/EmergencyAlerts';
@@ -37,31 +37,87 @@ import DoctorPharmacy from '@/pages/doctor/DoctorPharmacy';
 import DoctorWard from '@/pages/doctor/DoctorWard';
 import DoctorBilling from '@/pages/doctor/DoctorBilling';
 import DoctorDashboard from '@/pages/doctor/DoctorDashboard';
+import DoctorLab from '@/pages/doctor/DoctorLab';
+import HospitalSettings from '@/pages/doctor/HospitalSettings';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login' | 'portal_login'
-  const [loginRole, setLoginRole] = useState('doctor');
-  const [role, setRole] = useState('doctor');
+  const [loginRole, setLoginRole] = useState(null);
+  const [role, setRole] = useState(null);
   const [adminTab, setAdminTab] = useState('dashboard');
   const [patientTab, setPatientTab] = useState('dashboard');
   const [doctorTab, setDoctorTab] = useState('dashboard');
+  const { toasts, addToast, removeToast } = useToast();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Auto-logout Logic
+  const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
+  const timerRef = useRef(null);
+
+  const resetTimer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      console.log('Auto-logout due to inactivity');
+      await authService.signOut();
+    }, INACTIVITY_LIMIT);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      const handleActivity = () => resetTimer();
+      
+      events.forEach(event => window.addEventListener(event, handleActivity));
+      resetTimer(); // Start timer
+
+      return () => {
+        events.forEach(event => window.removeEventListener(event, handleActivity));
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     // Check initial session
     const checkSession = async () => {
+      setLoading(true);
+      setRole(null); // Reset role to prevent stale dashboard flicks
       try {
+        console.log('Checking initial session...');
+        const validateRole = (r) => {
+          if (!r) return null;
+          const lowerR = r.toLowerCase();
+          return ['admin', 'doctor', 'patient'].includes(lowerR) ? lowerR : null;
+        };
+
         const session = await authService.getSession();
         if (session) {
+          console.log('Session found for user:', session.user.email);
           setUser(session.user);
-          const userRole = session.user.user_metadata?.role || 'doctor';
-          setRole(userRole);
-          setIsAuthenticated(true);
+          
+          let userRole = validateRole(session.user.user_metadata?.role);
+          
+          if (!userRole) {
+            console.log('Metadata role missing or invalid, checking profiles table...');
+            const profile = await authService.getProfile(session.user.id);
+            userRole = validateRole(profile?.role);
+          }
+          
+          if (userRole) {
+            console.log('Setting verified role:', userRole);
+            setRole(userRole);
+            setIsAuthenticated(true);
+          } else {
+            console.warn('No valid role identified for authenticated user');
+            setIsAuthenticated(false);
+          }
         }
       } catch (err) {
-        console.warn('Session check failed:', err.message);
+        console.error('Session check failed:', err.message);
+        setIsAuthenticated(false);
+        setRole(null);
       } finally {
         setLoading(false);
       }
@@ -70,18 +126,44 @@ export default function App() {
     checkSession();
 
     // Listen for auth changes
-    const { data: { subscription } } = authService.onAuthChange((event, session) => {
+    const { data: { subscription } } = authService.onAuthChange(async (event, session) => {
+      console.log('Auth change event:', event);
       if (session) {
         setUser(session.user);
-        const userRole = session.user.user_metadata?.role || 'doctor';
-        setRole(userRole);
-        setIsAuthenticated(true);
+        
+        const validateRole = (r) => {
+          if (!r) return null;
+          const lowerR = r.toLowerCase();
+          return ['admin', 'doctor', 'patient'].includes(lowerR) ? lowerR : null;
+        };
+
+        let userRole = validateRole(session.user.user_metadata?.role);
+        
+        if (!userRole) {
+          console.log('Metadata role missing or invalid, checking profiles table...');
+          const profile = await authService.getProfile(session.user.id);
+          userRole = validateRole(profile?.role);
+        }
+        
+        if (userRole) {
+          console.log('Auth change detected validated role:', userRole);
+          setRole(userRole);
+          setIsAuthenticated(true);
+        } else {
+          console.warn('No valid role found for user:', session.user.id);
+          // If no valid role exists, we don't authenticate to avoid broken states
+          // This prevents the "redirect to hospital page" if the role was some junk value
+        }
       } else {
+        console.log('No session, clearing state');
         setUser(null);
         setIsAuthenticated(false);
+        setRole(null);
         setAuthStep('gateway');
+        setAdminTab('dashboard');
+        setPatientTab('dashboard');
+        setDoctorTab('dashboard');
       }
-      // Make sure loading is cleared when auth state changes
       setLoading(false);
     });
 
@@ -110,19 +192,19 @@ export default function App() {
       case 'appointments': return <Appointments />;
       case 'analytics': return <Analytics />;
       case 'settings': return <Settings />;
-      default: return <Dashboard />;
+      default: return <AdminDashboard user={user} />;
     }
   };
 
   const renderPatientContent = () => {
     switch (patientTab) {
-      case 'dashboard': return <PatientDashboard user={user} />;
-      case 'medications': return <PatientMedications />;
-      case 'appointments': return <PatientAppointments />;
-      case 'history': return <PatientHistory />;
-      case 'ambulance': return <PatientAmbulance />;
-      case 'settings': return <Settings />; // Reusing settings for now
-      default: return <PatientDashboard />;
+      case 'dashboard': return <PatientDashboard user={user} onNavigate={setPatientTab} />;
+      case 'medications': return <PatientMedications onNavigate={setPatientTab} />;
+      case 'appointments': return <PatientAppointments user={user} addToast={addToast} onNavigate={setPatientTab} />;
+      case 'history': return <PatientHistory onNavigate={setPatientTab} />;
+      case 'ambulance': return <PatientAmbulance onNavigate={setPatientTab} />;
+      case 'settings': return <Settings onNavigate={setPatientTab} />;
+      default: return <PatientDashboard user={user} onNavigate={setPatientTab} />;
     }
   };
 
@@ -138,8 +220,11 @@ export default function App() {
       case 'consultations': return <DoctorConsultations />;
       case 'ambulance': return <DoctorAmbulance />;
       case 'ward': return <DoctorWard />;
+      case 'lab': return <DoctorLab />;
       case 'billing': return <DoctorBilling />;
+      case 'analytics': return <Analytics />;
       case 'ai-insights': return <AgentLogs />; // Reusing agent logs for AI insights
+      case 'hospital-settings': return <HospitalSettings />;
       case 'settings': return <Settings />; // Reusing settings
       default: return <DoctorDashboard user={user} />;
     }
@@ -191,12 +276,9 @@ export default function App() {
             if (selectedRole === 'gateway_back') {
               setAuthStep('gateway');
             } else if (selectedRole === 'admin') {
-              setRole('admin');
               setAuthStep('admin_login');
             } else {
-              setRole(selectedRole);
-              setIsAuthenticated(true);
-              setLoading(false);
+              // The global onAuthChange listener will handle the transition
             }
           }}
         />
@@ -206,7 +288,9 @@ export default function App() {
     if (authStep === 'admin_login') {
       return (
         <AdminLogin
-          onConfirm={() => { setIsAuthenticated(true); setLoading(false); }}
+          onConfirm={() => { 
+            // The global onAuthChange listener will handle the transition
+          }}
           onBack={() => setAuthStep('gateway')}
         />
       );
@@ -228,11 +312,17 @@ export default function App() {
             onLogout={async () => {
               await authService.signOut();
             }}
+            onNavigate={(tab) => {
+              if (role === 'doctor') setDoctorTab(tab);
+              if (role === 'admin') setAdminTab(tab);
+              if (role === 'patient') setPatientTab(tab);
+            }}
           />
           <main className="flex-1 overflow-y-auto no-scrollbar">
             {renderContent()}
           </main>
         </div>
+        <Toast toasts={toasts} removeToast={removeToast} />
       </div>
     );
   }

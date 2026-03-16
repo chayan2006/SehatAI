@@ -10,6 +10,23 @@ import { pharmacyService, authService, hospitalService, aiService } from '@/data
 
 
 // Dangerous pair check (simple demo logic)
+const REPAIR_SQL = `
+-- 1. FIX: Missing Pharmacy Columns
+ALTER TABLE public.pharmacy_inventory ADD COLUMN IF NOT EXISTS expiry_date TEXT;
+
+-- 2. FIX: Deduplicate Hospitals & Force-Claim Data
+DO $$
+DECLARE keep_id UUID; hospital_row RECORD;
+BEGIN
+    FOR hospital_row IN SELECT DISTINCT admin_id FROM public.hospitals WHERE admin_id IS NOT NULL LOOP
+        SELECT id INTO keep_id FROM public.hospitals WHERE admin_id = hospital_row.admin_id ORDER BY created_at DESC LIMIT 1;
+        UPDATE public.patients SET hospital_id = keep_id WHERE hospital_id IS NULL;
+        UPDATE public.pharmacy_inventory SET hospital_id = keep_id WHERE hospital_id IS NULL;
+        DELETE FROM public.hospitals WHERE admin_id = hospital_row.admin_id AND id != keep_id;
+    END LOOP;
+END $$;
+`;
+
 const DANGEROUS_PAIRS = [
   { drugs: ['Warfarin', 'Aspirin'],      warning: '⚠️ Warfarin + Aspirin significantly increases bleeding risk. Review dosing.' },
   { drugs: ['Warfarin', 'Clopidogrel'],  warning: '⚠️ Dual anticoagulant therapy detected. High haemorrhage risk.' },
@@ -58,7 +75,7 @@ function AddDrugDialog({ onAdd, onClose, isProcessing }) {
               { label: 'SKU (optional)', key: 'sku', placeholder: 'e.g. AMX-500-01' },
               { label: 'Stock Level (%)', key: 'stockLevel', placeholder: 'e.g. 80', type: 'number' },
               { label: 'Expiry (MM/YYYY)', key: 'expiry', placeholder: 'e.g. 12/2026' },
-              { label: 'Unit Price', key: 'price', placeholder: 'e.g. 12.50' },
+              { label: 'Unit Price', key: 'price', placeholder: 'e.g. 550.00' },
             ].map(f => (
               <div key={f.key} className="grid grid-cols-4 items-center gap-4">
                 <label className="text-right text-sm text-slate-600 font-medium col-span-1">{f.label}</label>
@@ -146,8 +163,11 @@ export default function DoctorPharmacy() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
-      if (!hospital) return;
+      const hospital = await hospitalService.getMyHospital();
+      if (!hospital || !hospital.id) {
+        setLoading(false);
+        return;
+      }
 
       const [invData, rxData, logData] = await Promise.all([
         pharmacyService.getInventory(hospital.id),
@@ -166,29 +186,28 @@ export default function DoctorPharmacy() {
     }
   };
 
-  const [alerts, setAlerts] = useState([
-    { id: 1, name: 'Epinephrine 1mg/mL', type: 'Critical', message: 'Hospital-wide stock < 5 units.', detail: 'Emergency reorder advised.' },
-    { id: 2, name: 'Propofol 20mL', type: 'Warning', message: 'Depletion forecast: 14 hours.', detail: 'High ICU burn rate.' }
-  ]);
+  const [alerts, setAlerts] = useState([]);
 
   const handleAddDrug = async (drugData) => {
     setIsProcessing(true);
-    addToast(`Registering ${drugData.name}...`, 'loading');
+    const loadId = addToast(`Registering ${drugData.name}...`, 'loading', 3000);
     try {
       const hospital = await hospitalService.getMyHospital();
-      
+      if (!hospital || !hospital.id) throw new Error('Hospital ID is missing. Run Auto-Fix DB.');
+
       const newDrug = await pharmacyService.addDrug({
         hospital_id: hospital.id,
         name: drugData.name,
         sku: drugData.sku || `SKU-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
         category: drugData.category,
         stock_level: parseInt(drugData.stockLevel) || 100,
-        price: parseFloat(drugData.price.replace('$','')) || 0,
+        price: parseFloat(drugData.price.replace('₹','').replace('$','')) || 0,
         status: 'In Stock',
         expiry_date: drugData.expiry || '2026-12-31',
         burn_rate: 2.0,
       });
 
+      removeToast(loadId);
       setInventory(prev => [newDrug, ...prev]);
       setShowAddDrug(false);
       addToast(`✓ ${drugData.name} added to inventory.`, 'success');
@@ -202,7 +221,7 @@ export default function DoctorPharmacy() {
 
   const doApprove = async (rx) => {
     setIsProcessing(true);
-    addToast(`Dispensing ${rx.drug_name}...`, 'loading');
+    const lid = addToast(`Dispensing ${rx.drug_name}...`, 'loading', 3000);
     try {
       const user = await authService.getCurrentUser();
       // 1. Update status
@@ -225,9 +244,12 @@ export default function DoctorPharmacy() {
       }, ...prev]);
       setSelectedRx(null);
       setInteractionWarning(null);
+      removeToast(lid);
       addToast(`✓ ${rx.drug_name} dispensed to patient.`, 'success');
+      loadAllData();
     } catch (err) {
       console.error(err);
+      removeToast(lid);
       addToast('Dispensing failed', 'error');
     } finally {
       setIsProcessing(false);
@@ -245,12 +267,14 @@ export default function DoctorPharmacy() {
   };
 
   const handleRejectPrescription = async (rx) => {
-    addToast(`Rejecting prescription...`, 'loading');
+    const lid = addToast(`Rejecting prescription...`, 'loading', 3000);
     try {
       await pharmacyService.updatePrescriptionStatus(rx.id, 'Rejected');
       setPrescriptions(prev => prev.filter(p => p.id !== rx.id));
+      removeToast(lid);
       addToast(`Prescription for ${rx.drug_name} rejected.`, 'success');
     } catch (err) {
+      removeToast(lid);
       addToast('Rejection failed', 'error');
     }
   };
@@ -258,7 +282,7 @@ export default function DoctorPharmacy() {
   const handleBatchApprove = async () => {
     if (selectedRxIds.length === 0) return;
     setIsProcessing(true);
-    addToast(`Dispensing ${selectedRxIds.length} prescriptions...`, 'loading');
+    const lid = addToast(`Dispensing ${selectedRxIds.length} prescriptions...`, 'loading', 3000);
     try {
       const selectedRxs = prescriptions.filter(p => selectedRxIds.includes(p.id));
       for (const rx of selectedRxs) {
@@ -274,10 +298,13 @@ export default function DoctorPharmacy() {
       }
       setPrescriptions(prev => prev.filter(p => !selectedRxIds.includes(p.id)));
       setSelectedRxIds([]);
+      removeToast(lid);
       addToast(`✓ ${selectedRxIds.length} prescriptions dispensed successfully.`, 'success');
+      setSelectedRxIds([]);
       loadAllData();
     } catch (err) {
-      addToast('Batch processing failed.', 'error');
+      removeToast(lid);
+      addToast('Batch dispensing failed', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -295,8 +322,9 @@ export default function DoctorPharmacy() {
   };
 
   const handleAlertOrder = async (alertId, medName) => {
-    addToast(`Placing emergency order for ${medName}...`, 'loading');
+    const lid = addToast(`Placing emergency order for ${medName}...`, 'loading', 3000);
     await new Promise(r => setTimeout(r, 900));
+    removeToast(lid);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
     addToast(`✓ Emergency order placed for ${medName}. ETA: 4 hours.`, 'success');
   };
@@ -349,7 +377,7 @@ export default function DoctorPharmacy() {
           { label: 'Total SKUs',        val: inventory.length,                                    icon: Package,       color: 'indigo', sub: 'drugs catalogued'         },
           { label: 'Pending RX',        val: prescriptions.filter(p => p.status === 'Pending').length, icon: Clock,    color: 'amber',  sub: 'awaiting approval'        },
           { label: 'Low Stock',         val: inventory.filter(i => i.status === 'Low Stock').length,   icon: AlertTriangle, color: 'red', sub: 'order immediately'   },
-          { label: 'Forecast Accuracy', val: '98.4%',                                             icon: TrendingUp,    color: 'emerald',sub: 'Sehat-Forecaster v2'      },
+          { label: 'Forecast Accuracy', val: 'N/A',                                             icon: TrendingUp,    color: 'emerald',sub: 'Insufficient Data'      },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
@@ -442,6 +470,15 @@ export default function DoctorPharmacy() {
                           <div className="py-14 flex flex-col items-center gap-3 text-center">
                             <Package size={32} className="text-slate-200"/>
                             <p className="font-bold text-slate-500">No drugs found</p>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(REPAIR_SQL);
+                                addToast('Supreme Repair SQL copied! Run it in Supabase Editor.', 'success');
+                              }}
+                              className="mt-2 flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 transition-colors"
+                            >
+                              <ShieldAlert size={14}/> Auto-Fix Pharmacy DB
+                            </button>
                           </div>
                         </td></tr>
                       ) : inventory.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase())).map(med => (
@@ -467,7 +504,7 @@ export default function DoctorPharmacy() {
                                 OUT IN {med.predicted_out_days || 50}d
                                 <span className="ml-1 text-slate-400 font-medium">({med.burn_rate}/day)</span>
                               </div>
-                            ) : <span className="font-bold text-slate-900">${med.price}</span>}
+                            ) : <span className="font-bold text-slate-900">₹{med.price}</span>}
                           </td>
                           <td className="px-4 py-4">
                             <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-medium">{med.category}</span>

@@ -15,10 +15,9 @@ export const hospitalService = {
     const { data, error } = await supabase
       .from('escalations')
       .insert([escalationData])
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async resolveEscalation(escalationId, overrideNotes) {
@@ -30,30 +29,33 @@ export const hospitalService = {
         override_reason: overrideNotes
       })
       .eq('id', escalationId)
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async getWards(hospitalId) {
     const { data, error } = await supabase
       .from('wards')
-      .select('*, beds(*)')
+      .select('*, beds(*, patients(*))')
       .eq('hospital_id', hospitalId);
     if (error) throw error;
     return data;
   },
 
   async updateBedStatus(bedId, status, patientId = null) {
+    console.log(`Updating bed ${bedId} to ${status} (Patient: ${patientId})`);
     const { data, error } = await supabase
       .from('beds')
       .update({ status: status, patient_id: patientId })
       .eq('id', bedId)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+      .select();
+    
+    if (error) {
+      console.error('Bed update failed:', error);
+      throw error;
+    }
+    return data?.[0];
   },
 
   async getAuditLogs(hospitalId) {
@@ -92,10 +94,9 @@ export const hospitalService = {
     const { data, error } = await supabase
       .from('hospital_staff')
       .upsert({ ...staffData, hospital_id: hospitalId })
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async deleteStaff(staffId) {
@@ -131,15 +132,98 @@ export const hospitalService = {
       .from('hospitals')
       .select('*')
       .eq('admin_id', adminId)
-      .maybeSingle();
+      .limit(1);
     if (error) throw error;
-    return data; // returns null if not found instead of throwing
+    return data?.[0] || null;
   },
 
   async getMyHospital() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    return this.getHospitalByAdmin(user.id);
+    let hospital = await this.getHospitalByAdmin(user.id);
+    
+    // Auto-provision if missing (crucial for demo/hackathon stability)
+    if (!hospital) {
+      console.log('Hospital missing for user, checking profile...');
+      
+      // Ensure profile exists first (to avoid FK violation in hospitals table)
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .limit(1);
+      
+      const profile = profiles?.[0];
+        
+      if (!profile) {
+        console.log('Profile missing, creating profile...');
+        await supabase.from('profiles').insert([{
+          id: user.id,
+          role: user.user_metadata?.role || 'doctor',
+          full_name: user.user_metadata?.full_name || user.email,
+          email: user.email
+        }]);
+      }
+
+      console.log('Auto-provisioning clinic...');
+      const hospitalName = user.user_metadata?.hospital_name || `${user.user_metadata?.full_name || 'My'} Clinic`;
+      const { data, error } = await supabase
+        .from('hospitals')
+        .insert([{
+          admin_id: user.id,
+          hospital_name: hospitalName,
+          is_verified: true
+        }])
+        .select();
+      
+      if (error) {
+        console.error('Auto-provisioning failed:', error);
+        throw new Error(`Clinic setup failed: ${error.message}. This usually means your user profile is missing or permissions are restricted.`);
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error('Clinic was created but could not be retrieved. Row Level Security (RLS) is likely blocking the read.');
+      }
+      hospital = data[0];
+    }
+    return hospital;
+  },
+  
+  async seedHospitalInfrastructure(hospitalId) {
+    console.log('Seeding defaults for hospital:', hospitalId);
+    
+    const defaultWards = [
+      { name: 'Intensive Care Unit (ICU)', type: 'Specialized' },
+      { name: 'General Medical Ward', type: 'General' },
+      { name: 'Emergency Observation', type: 'Emergency' }
+    ];
+
+    const results = [];
+    
+    for (const ward of defaultWards) {
+      // 1. Create Ward
+      const { data: wardData, error: wardError } = await supabase
+        .from('wards')
+        .insert([{ hospital_id: hospitalId, name: ward.name, type: ward.type }])
+        .select();
+      
+      if (wardError) throw wardError;
+      const newWard = wardData[0];
+
+      // 2. Create 4 Beds for this ward
+      const bedsToInsert = [1, 2, 3, 4].map(num => ({
+        ward_id: newWard.id,
+        bed_number: `${ward.name[0]}${num}`,
+        status: 'available'
+      }));
+
+      const { error: bedError } = await supabase.from('beds').insert(bedsToInsert);
+      if (bedError) throw bedError;
+      
+      results.push(newWard);
+    }
+    
+    return results;
   },
 
   // Real-time subscriptions
@@ -163,5 +247,38 @@ export const hospitalService = {
         callback
       )
       .subscribe();
+  },
+
+  async searchStaff(hospitalId, query) {
+    if (!query) return [];
+    console.log('Searching staff:', query);
+    const { data, error } = await supabase
+      .from('hospital_staff')
+      .select('*')
+      .eq('hospital_id', hospitalId)
+      .ilike('name', `%${query}%`);
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getAllHospitals() {
+    const { data, error } = await supabase
+      .from('hospitals')
+      .select('*')
+      .order('hospital_name', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateHospitalSettings(hospitalId, settings) {
+    const { data, error } = await supabase
+      .from('hospitals')
+      .update(settings)
+      .eq('id', hospitalId)
+      .select();
+    if (error) throw error;
+    return data?.[0];
   }
 };

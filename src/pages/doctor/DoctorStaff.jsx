@@ -51,7 +51,7 @@ export default function DoctorStaff() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
+      const hospital = await hospitalService.getMyHospital();
       if (!hospital) return;
 
       const [staff, shiftLogs, logs] = await Promise.all([
@@ -74,17 +74,19 @@ export default function DoctorStaff() {
   const handleSaveStaff = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
-    addToast(editingStaff ? `Updating ${formData.name}...` : `Onboarding ${formData.name}...`, 'loading');
+    const lid = addToast(editingStaff ? `Updating ${formData.name}...` : `Onboarding ${formData.name}...`, 'loading', 3000);
     try {
       const hospital = await hospitalService.getMyHospital();
       
       if (editingStaff) {
          // Update endpoint not explicit in userService yet, but using addStaff as upsert if needed
          // For now let's assume update logic or call add again with same ID if schema supports
-         await hospitalService.addStaff(hospital.id, { ...formData, id: editingStaff.id });
+         await hospitalService.updateStaff(editingStaff.id, formData);
+         removeToast(lid);
          addToast(`✓ ${formData.name}'s profile updated.`, 'success');
       } else {
-         await hospitalService.addStaff(hospital.id, { ...formData, avatar: AVATAR });
+         await hospitalService.addStaff(hospital.id, formData);
+         removeToast(lid);
          addToast(`✓ ${formData.name} successfully onboarded.`, 'success');
       }
       
@@ -93,6 +95,7 @@ export default function DoctorStaff() {
       setFormData(emptyStaffForm);
       loadAllStaffData();
     } catch (err) {
+      removeToast(lid);
       addToast('Operation failed', 'error');
     } finally {
       setIsProcessing(false);
@@ -103,12 +106,14 @@ export default function DoctorStaff() {
     if (!window.confirm(`Are you sure you want to remove ${name}?`)) return;
     
     setIsProcessing(true);
-    addToast(`Removing ${name}...`, 'loading');
+    const lid = addToast(`Removing ${name}...`, 'loading', 3000);
     try {
       await hospitalService.deleteStaff(id);
+      removeToast(lid);
       addToast(`${name} removed from directory.`, 'success');
       loadAllStaffData();
     } catch (err) {
+      removeToast(lid);
       addToast('Removal failed', 'error');
     } finally {
       setIsProcessing(false);
@@ -121,21 +126,23 @@ export default function DoctorStaff() {
     if (!assignedStaff) return;
 
     setIsProcessing(true);
-    addToast(`Assigning shift to ${assignedStaff.name}...`, 'loading');
+    const lid = addToast(`Assigning shift to ${assignedStaff.name}...`, 'loading', 3000);
     try {
       const hospital = await hospitalService.getMyHospital();
       await hospitalService.assignShift(hospital.id, {
-        staff_id: shiftData.staffId,
+        staff_id: assignedStaff.id,
         shift_date: shiftData.date,
         shift_type: shiftData.type,
-        start_time: shiftData.type.includes('Morning') ? '06:00' : '14:00',
-        end_time: shiftData.type.includes('Morning') ? '14:00' : '22:00'
+        start_time: shiftData.start,
+        end_time: shiftData.end
       });
       
+      removeToast(lid);
       addToast(`✓ Shift assigned successfully.`, 'success');
       setIsAssignShiftOpen(false);
       loadAllStaffData();
     } catch (err) {
+      removeToast(lid);
       addToast('Assignment failed', 'error');
     } finally {
       setIsProcessing(false);

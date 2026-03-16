@@ -6,23 +6,9 @@ export function ConsultationMap({ appointments }) {
     appointments.filter(a => a.mode === 'In-Person' && a.x !== undefined && a.y !== undefined)
   );
 
-  // Simulate slight movement for patients waiting
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveAppointments(prev => prev.map(apt => {
-        // Randomly jitter x and y by a tiny amount to simulate pacing/waiting
-        const jitterX = (Math.random() - 0.5) * 2; // -1 to 1
-        const jitterY = (Math.random() - 0.5) * 2; // -1 to 1
-
-        // Keep them within their general area
-        const newX = Math.max(10, Math.min(90, (apt.x || 50) + jitterX));
-        const newY = Math.max(10, Math.min(90, (apt.y || 50) + jitterY));
-
-        return { ...apt, x: newX, y: newY };
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    setLiveAppointments(appointments.filter(a => a.mode === 'In-Person' && a.x !== undefined && a.y !== undefined));
+  }, [appointments]);
 
   return (
     <div className="relative w-full h-[400px] bg-slate-50 rounded-xl overflow-hidden border border-slate-200 shadow-inner">

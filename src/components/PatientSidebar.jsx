@@ -46,7 +46,10 @@ export function PatientSidebar({ className, activeTab, onTabChange, user }) {
       </div>
 
       <div className="p-4 border-t border-blue-900 mt-auto">
-        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-900/50 cursor-pointer group transition-colors">
+        <div 
+          onClick={() => onTabChange('history')}
+          className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-900/50 cursor-pointer group transition-colors"
+        >
           <div className="w-10 h-10 flex-shrink-0 rounded-full bg-blue-900 flex items-center justify-center text-blue-300 group-hover:text-white border border-blue-800">
             <UserCircle className="h-6 w-6" />
           </div>

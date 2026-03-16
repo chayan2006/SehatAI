@@ -52,7 +52,7 @@ export default function DoctorVitals() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
+      const hospital = await hospitalService.getMyHospital();
       if (!hospital) return;
 
       const data = await patientService.getPatients(hospital.id);
@@ -64,17 +64,16 @@ export default function DoctorVitals() {
         name: p.full_name,
         ward: p.ward_info || 'Unassigned',
         status: p.status || 'Monitoring',
-        hr: 75 + Math.floor(Math.random() * 10),
-        spO2: 98 + Math.floor(Math.random() * 2),
-        bp: '120/80',
-        temp: 36.5 + (Math.random() * 0.5),
+        hr: p.last_hr || '--',
+        spO2: p.last_spo2 || '--',
+        bp: p.last_bp || '--/--',
+        temp: p.last_temp || '--',
         minHr: 60,
         maxHr: 100,
         avgHr: 75,
-        variability: 'Normal',
-        wearable: { battery: 85, signal: 'Strong', firmware: 'v2.4.1' }
+        variability: 'Stable',
+        wearable: { battery: 100, signal: 'Stable', firmware: 'v2.4.1' }
       }));
-
       setPatients(transformed);
       if (transformed.length > 0 && !selectedPatientId) {
         setSelectedPatientId(transformed[0].id);
@@ -95,28 +94,10 @@ export default function DoctorVitals() {
     }
   };
 
-  // Real-time subtle vital fluctuations + Real-time Sync
+  // Real-time Sync
   useEffect(() => {
     let channel;
     
-    // Simulations (Internal Heartbeat)
-    const interval = setInterval(() => {
-      setPatients(currentPatients => 
-        currentPatients.map(p => {
-          let newHr = p.hr + (Math.floor(Math.random() * 3) - 1);
-          if (p.status === 'Critical' && newHr < 120) newHr = 125;
-          if (p.status !== 'Critical' && newHr > 110) newHr = 95;
-          if (newHr < 50) newHr = 55;
-
-          let newSpO2 = p.spO2 + (Math.floor(Math.random() * 3) - 1);
-          if (newSpO2 > 100) newSpO2 = 100;
-          if (newSpO2 < 85) newSpO2 = 88;
-
-          return { ...p, hr: newHr, spO2: newSpO2 };
-        })
-      );
-    }, 4000);
-
     // Supabase Realtime Sync
     const setupRealtime = async () => {
       const hospital = await hospitalService.getMyHospital();
@@ -140,7 +121,6 @@ export default function DoctorVitals() {
     setupRealtime();
 
     return () => {
-      clearInterval(interval);
       if (channel) channel.unsubscribe();
     };
   }, [selectedPatientId]);
@@ -149,7 +129,7 @@ export default function DoctorVitals() {
     e.preventDefault();
     if (!selectedPatientId) return;
     setIsSaving(true);
-    addToast('Saving vital readings...', 'loading');
+    const lid = addToast('Saving vital readings...', 'loading', 3000);
     
     try {
       const user = await authService.getCurrentUser();
@@ -166,11 +146,13 @@ export default function DoctorVitals() {
       // Audit log for clinical record commit
       await hospitalService.logAction(user.id, 'EMR_COMMIT_VITALS', 'vital_readings', selectedPatientId);
 
+      removeToast(lid);
       addToast('✓ Vitals recorded and committed to EMR.', 'success');
       setIsRecordOpen(false);
       setNewReading({ hr: '', bp: '', spo2: '', temp: '' });
       fetchVitalsHistory(selectedPatientId);
     } catch (err) {
+      removeToast(lid);
       addToast('Failed to save vitals', 'error');
     } finally {
       setIsSaving(false);
@@ -180,7 +162,7 @@ export default function DoctorVitals() {
   const handleAIByForecast = async () => {
     if (!selectedPatientId) return;
     setIsForecastLoading(true);
-    addToast('SehatAI Brain generating 72h clinical trajectory...', 'loading');
+    const lid = addToast('SehatAI Brain generating 72h clinical trajectory...', 'loading', 3000);
     
     try {
       const patient = patients.find(p => p.id === selectedPatientId);
@@ -192,8 +174,10 @@ export default function DoctorVitals() {
       );
       
       setForecastResult(analysis);
+      removeToast(lid);
       addToast('✓ AI Forecast Ready', 'success');
     } catch (err) {
+      removeToast(lid);
       addToast('AI Forecast failed', 'error');
     } finally {
       setIsForecastLoading(false);

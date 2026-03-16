@@ -7,3 +7,5 @@ export * from './chatService';
 export * from './aiService';
 export * from './roadmapService';
 export * from './domainService';
+export * from './labService';
+export * from './appointmentService';

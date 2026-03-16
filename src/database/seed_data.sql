@@ -178,7 +178,30 @@ VALUES
     ('11111111-1111-1111-1111-111111111111', 'Amlodipine 5mg', 'Cardiovascular', 150, 50, 6.7, 'tablets')
 ON CONFLICT DO NOTHING;
 
--- 7. RESTORE CONSTRAINTS
+-- 8. Add Clinical Records & Vitals (For Testing the Patient Portal)
+-- INSTRUCTIONS: Replace 'PASTE_YOUR_PATIENT_ID_HERE' with your ID from the Profiles table.
+-- You can find your ID by running: SELECT id FROM public.profiles WHERE role = 'patient' LIMIT 1;
+
+DO $$
+DECLARE
+    p_id UUID := (SELECT id FROM public.patients LIMIT 1); -- Auto-targets first patient if not specified
+BEGIN
+    IF p_id IS NOT NULL THEN
+        -- Add Medical Records
+        INSERT INTO public.medical_records (patient_id, diagnosis, prescription_data, ai_analysis_summary, visit_date)
+        VALUES 
+            (p_id, 'Type 2 Diabetes Hypertension', '{"medication": "Metformin", "dosage": "500mg", "frequency": "Twice daily with meals"}', 'Patient shows stable glycemic control. Recommended continuing current dosage.', NOW() - interval '2 days'),
+            (p_id, 'Acute Bronchitis', '{"medication": "Amoxicillin", "dosage": "250mg", "frequency": "Three times daily"}', 'Lung sounds clearing. Patient responding well to antibiotics.', NOW() - interval '15 days'),
+            (p_id, 'Hypercholesterolemia', '{"medication": "Atorvastatin", "dosage": "20mg", "frequency": "Once daily at night"}', 'Lipid profile improved. LDL levels within target range.', NOW() - interval '45 days');
+
+        -- Add Vital Readings (Used by the Live Sync in My Health)
+        -- Note: The frontend looks for the LATEST readings
+        INSERT INTO public.medical_records (patient_id, diagnosis, vital_signs, visit_date)
+        VALUES (p_id, 'Routine Checkup', '{"pulse": 72, "blood_pressure": "120/80", "spo2": 98}', NOW());
+    END IF;
+END $$;
+
+-- 9. RESTORE CONSTRAINTS
 SET session_replication_role = 'origin';
 
 -- ==============================================================================

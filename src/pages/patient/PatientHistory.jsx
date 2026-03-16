@@ -1,4 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { patientService } from '../../database/patientService';
+import { authService } from '../../database/authService';
 
 const GRAPH_W = 800;
 const GRAPH_H = 200;
@@ -9,9 +11,58 @@ export default function PatientHistory({ onNavigate }) {
   const [viewMode, setViewMode] = useState('summary');
   const [vbX, setVbX] = useState(0);
   const [vbW, setVbW] = useState(GRAPH_W);
+  const [loading, setLoading] = useState(true);
+  const [vitals, setVitals] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [patientId, setPatientId] = useState(null);
+  
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, vbX: 0 });
   const svgRef = useRef(null);
+
+  useEffect(() => {
+    loadHealthData();
+  }, []);
+
+  const loadHealthData = async () => {
+    try {
+      setLoading(true);
+      const user = await authService.getCurrentUser();
+      if (!user) return;
+      
+      setPatientId(user.id);
+      
+      const [vitalsData, recordsData] = await Promise.all([
+        patientService.getLatestVitals(user.id),
+        patientService.getMedicalRecords(user.id)
+      ]);
+      
+      setVitals(vitalsData || []);
+      setRecords(recordsData || []);
+      
+      // Subscribe to real-time vitals
+      const subscription = patientService.subscribeToVitals(user.id, (payload) => {
+        setVitals(prev => [payload.new, ...prev].slice(0, 10));
+      });
+      
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error("Error loading health data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const latestVitals = vitals[0] || { pulse: '--', systolic: '--', diastolic: '--', spO2: '--' };
+  const prevVitals = vitals[1] || latestVitals;
+  
+  const hrChange = typeof latestVitals.pulse === 'number' && typeof prevVitals.pulse === 'number'
+    ? Math.round(((latestVitals.pulse - prevVitals.pulse) / prevVitals.pulse) * 100)
+    : 0;
+
+  const bpTrend = latestVitals.systolic > 130 ? 'High' : 'Stable';
 
   const MIN_VBW = 150; // max zoom in
 
@@ -111,11 +162,13 @@ export default function PatientHistory({ onNavigate }) {
               <span className="material-symbols-outlined text-red-500" style={{ fontVariationSettings: '"FILL" 1' }}>favorite</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-slate-900 dark:text-white">72</span>
+              <span className="text-4xl font-black text-slate-900 dark:text-white">{latestVitals.pulse}</span>
               <span className="text-slate-400 font-medium">BPM</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-sm">
-              <span className="text-red-500 font-bold flex items-center"><span className="material-symbols-outlined text-sm">trending_down</span> 2%</span>
+              <span className={`${hrChange >= 0 ? 'text-green-500' : 'text-red-500'} font-bold flex items-center`}>
+                <span className="material-symbols-outlined text-sm">{hrChange >= 0 ? 'trending_up' : 'trending_down'}</span> {Math.abs(hrChange)}%
+              </span>
               <span className="text-slate-400">from last hour</span>
             </div>
           </div>
@@ -126,12 +179,16 @@ export default function PatientHistory({ onNavigate }) {
               <span className="material-symbols-outlined text-blue-500" style={{ fontVariationSettings: '"FILL" 1' }}>blood_pressure</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-slate-900 dark:text-white">120/80</span>
+              <span className="text-4xl font-black text-slate-900 dark:text-white">
+                {latestVitals.systolic}/{latestVitals.diastolic}
+              </span>
               <span className="text-slate-400 font-medium">mmHg</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-sm">
-              <span className="text-green-500 font-bold flex items-center"><span className="material-symbols-outlined text-sm">trending_up</span> 1%</span>
-              <span className="text-slate-400">Stable range</span>
+              <span className={`${bpTrend === 'Stable' ? 'text-green-500' : 'text-yellow-500'} font-bold flex items-center`}>
+                <span className="material-symbols-outlined text-sm">{bpTrend === 'Stable' ? 'check_circle' : 'warning'}</span> {bpTrend}
+              </span>
+              <span className="text-slate-400">range</span>
             </div>
           </div>
           {/* SpO2 */}
@@ -141,7 +198,7 @@ export default function PatientHistory({ onNavigate }) {
               <span className="material-symbols-outlined text-primary">air</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-slate-900 dark:text-white">98</span>
+              <span className="text-4xl font-black text-slate-900 dark:text-white">{latestVitals.spO2}</span>
               <span className="text-slate-400 font-medium">%</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-sm">
@@ -253,34 +310,22 @@ export default function PatientHistory({ onNavigate }) {
                 <div className="size-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>bolt</span>
                 </div>
-                <span className="text-sm font-bold text-primary">Optimization Tip</span>
+                <span className="text-sm font-bold text-primary">AI Diagnostic Summary</span>
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                Your resting heart rate has decreased by 2% over the last week. This indicates improved cardiovascular efficiency. Keep up the aerobic activity!
+                {records[0]?.ai_analysis_summary || "No recent AI analysis found for your medical records. Consult with your doctor to generate a summary."}
               </p>
             </div>
             
             <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/50 p-5 rounded-2xl shadow-sm">
               <div className="flex items-center gap-3 mb-3">
                 <div className="size-8 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>water_drop</span>
+                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>science</span>
                 </div>
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Hydration Alert</span>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Recent Lab Trends</span>
               </div>
               <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                Based on your activity data, you are 15% behind your hydration goal for today. Aim for 2 more glasses before 6 PM.
-              </p>
-            </div>
-            
-            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-5 rounded-2xl shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="size-8 rounded-full bg-slate-400 dark:bg-slate-600 text-white flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>nightlight</span>
-                </div>
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Sleep Insight</span>
-              </div>
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                Deep sleep cycles were shorter than average last night. Consider reducing screen time 30 mins earlier today.
+                Your latest metabolic panel indicates stable electrolyte levels. AI recommends maintaining current hydration levels.
               </p>
             </div>
           </div>
@@ -317,102 +362,43 @@ export default function PatientHistory({ onNavigate }) {
           
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {/* Entry 1 */}
-              <div className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Oct</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-200">12</span>
-                  <div className="w-px h-full bg-slate-200 dark:bg-slate-700 my-3 group-hover:bg-primary/20 transition-colors"></div>
+              {records.length === 0 ? (
+                <div className="p-12 text-center text-slate-500">
+                  <span className="material-symbols-outlined text-4xl block mb-2 text-slate-300">history_toggle_off</span>
+                  No formal medical records found.
                 </div>
-                <div className="flex-1 pb-2">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">Seasonal Allergies (Follow-up)</h4>
-                    <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-extrabold uppercase tracking-wider shrink-0">Completed</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-1 font-medium">Diagnosis: Allergic Rhinitis</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Dr. Sarah Miller</span>
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Prescription: Loratadine</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Entry 2 */}
-              <div className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aug</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-200">28</span>
-                  <div className="w-px h-full bg-slate-200 dark:bg-slate-700 my-3 group-hover:bg-primary/20 transition-colors"></div>
-                </div>
-                <div className="flex-1 pb-2">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">Annual Physical Examination</h4>
-                    <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-extrabold uppercase tracking-wider shrink-0">Archived</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-1 font-medium">General check-up, blood work, and vaccinations.</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Dr. James Chen</span>
-                    <span className="text-xs bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg text-primary font-bold">Healthy Range</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Entry 3 */}
-              <div className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jun</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-200">05</span>
-                  <div className="w-px h-full bg-slate-200 dark:bg-slate-700 my-3 group-hover:bg-primary/20 transition-colors"></div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">Minor Sports Injury (Ankle)</h4>
-                    <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-extrabold uppercase tracking-wider shrink-0">Archived</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-1 font-medium">Diagnosis: Grade 1 Sprain</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Physiotherapy Center</span>
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Treatment: R.I.C.E</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Entry 4 */}
-              <div className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Apr</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-200">18</span>
-                  <div className="w-px h-full bg-slate-200 dark:bg-slate-700 my-3 group-hover:bg-primary/20 transition-colors"></div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">Telehealth Consultation</h4>
-                    <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-extrabold uppercase tracking-wider shrink-0">Archived</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-1 font-medium">Follow-up on skin rash.</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Dr. Amy Watson</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Entry 5 */}
-              <div className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Feb</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-200">02</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">Emergency Room Visit</h4>
-                    <span className="px-2.5 py-1 rounded-md bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-extrabold uppercase tracking-wider shrink-0">Archived</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-1 font-medium">Severe abdominal pain - Appendicitis ruled out.</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-800">Springfield General</span>
-                  </div>
-                </div>
-              </div>
+              ) : (
+                records.map((record, i) => {
+                  const date = new Date(record.visit_date);
+                  const day = date.getDate();
+                  const month = date.toLocaleString('default', { month: 'short' });
+                  
+                  return (
+                    <div key={record.id} className="p-5 flex gap-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <div className="flex flex-col items-center shrink-0">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{month}</span>
+                        <span className="text-2xl font-black text-slate-800 dark:text-slate-200">{day}</span>
+                        <div className="w-px h-full bg-slate-200 dark:bg-slate-700 my-3 group-hover:bg-primary/20 transition-colors"></div>
+                      </div>
+                      <div className="flex-1 pb-2">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-2 items-start justify-between">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">{record.diagnosis || "Medical Consultation"}</h4>
+                          <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-extrabold uppercase tracking-wider shrink-0">COMPLETED</span>
+                        </div>
+                        <p className="text-sm text-slate-500 mt-1 font-medium line-clamp-2">
+                          {record.ai_analysis_summary?.substring(0, 150) || "Comprehensive clinical assessment performed."}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <span className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">Clinical ID: {record.id.substring(0, 8)}</span>
+                          {record.prescription_data && (
+                            <span className="text-xs bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg text-primary font-bold">Prescription Issued</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </section>

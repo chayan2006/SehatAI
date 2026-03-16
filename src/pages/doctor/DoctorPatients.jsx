@@ -96,7 +96,7 @@ export default function DoctorPatients() {
       const user = await authService.getCurrentUser();
       if (!user) return;
 
-      const hospital = await hospitalService.getHospitalByAdmin(user.id);
+      const hospital = await hospitalService.getMyHospital();
       
       if (!hospital) {
         setPatients([]);
