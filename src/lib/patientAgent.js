@@ -46,14 +46,20 @@ export async function initPatientAgent({ apiKey }) {
             func: async ({ query }) => await searchKnowledge(query),
         }),
         new DynamicStructuredTool({
-            name: "analyze_wound_or_report",
-            description: "Specialized tool for analyzing uploaded images of wounds, cuts, or medical reports.",
-            schema: z.object({
-                description: z.string().describe("A textual description of what the user uploaded or what is visible."),
-            }),
-            func: async ({ description }) => {
-                // In a real scenario, this would trigger vision analysis if not already handled by the LLM
-                return `Based on the visual analysis of "${description}": Please ensure the area is clean. If it's a cut, apply firm pressure with a clean cloth. If it's a medical report, your hemoglobin levels seem within normal range, but consult your doctor for a detailed review.`;
+            name: "get_bracelet_live_data",
+            description: "Retrieves real-time sensor data from the IoT Smart Health Bracelet (BPM, SpO2, Temp, Steps).",
+            schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
+            func: async () => {
+                // In a real app, this would fetch from Firebase or ThingSpeak
+                // For this project, we return simulated live data consistent with the UI
+                return JSON.stringify({
+                    heartRate: "76 BPM",
+                    spo2: "98.5%",
+                    temperature: "36.7°C",
+                    steps: "8,540",
+                    status: "Active & Connected",
+                    device: "ESP32-Smart-Bracelet"
+                });
             },
         }),
     ];
@@ -69,6 +75,11 @@ export async function initPatientAgent({ apiKey }) {
 
     const systemInstruction = `You are SehatAI Patient Companion, a caring and knowledgeable AI health assistant.
     You help patients manage their health records, understand symptoms, and provide first aid advice.
+    
+    IoT BRACELET:
+    You now have access to the user's "IoT-Based Smart Health Monitoring Bracelet" data via the 'get_bracelet_live_data' tool. 
+    The bracelet uses an ESP32, MAX30102 (HR/SpO2), DS18B20 (Temp), and MPU6050 (Motion).
+    If a user asks about their real-time vitals, use this tool to provide accurate feedback.
     
     GUIDELINES:
     1. **Empathy**: Always be kind and supportive.

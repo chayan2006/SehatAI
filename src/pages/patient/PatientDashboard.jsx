@@ -12,10 +12,13 @@ import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
 
 import AIChat from '@/components/AIChat';
+import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
 
 export default function PatientDashboard({ onLogout }) {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [agentExecutor, setAgentExecutor] = useState(null);
+  const [isBraceletRegistered, setIsBraceletRegistered] = useState(false);
+  const [braceletId, setBraceletId] = useState('');
 
   useEffect(() => {
     const setupAgent = async () => {
@@ -45,7 +48,7 @@ export default function PatientDashboard({ onLogout }) {
       case 'ambulance': return <PatientBookAmbulance onNavigate={setActiveNav} />;
 
       case 'settings': return <Settings onNavigate={setActiveNav} />;
-      default: return <DashboardView onNavigate={setActiveNav} />;
+      default: return <DashboardView onNavigate={setActiveNav} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />;
     }
   };
 
@@ -150,7 +153,7 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ onNavigate }) {
+function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
 
 
@@ -191,58 +194,25 @@ function DashboardView({ onNavigate }) {
         </button>
       </section>
 
-      {/* Health Pulse Grid */}
+      {/* Health Pulse Grid / Bracelet Tracker */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">pulse_alert</span>
-            Health Pulse
+            Health Intelligence
           </h3>
-          <button onClick={() => onNavigate('health')} className="text-xs font-semibold text-primary hover:underline">View History</button>
+          {isBraceletRegistered && (
+             <button onClick={() => setIsBraceletRegistered(false)} className="text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 px-3 py-1 rounded-full transition-all">Disconnect Bracelet</button>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-sm font-medium text-slate-500">Heart Rate</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">-2%</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">72</span>
-              <span className="text-slate-400 text-sm font-medium">BPM</span>
-            </div>
-            <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full w-[72%]"></div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-sm font-medium text-slate-500">Blood Pressure</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Stable</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">120/80</span>
-              <span className="text-slate-400 text-sm font-medium">mmHg</span>
-            </div>
-            <div className="mt-4 flex gap-1">
-              <div className="h-1.5 flex-1 bg-primary rounded-full"></div>
-              <div className="h-1.5 flex-1 bg-primary rounded-full"></div>
-              <div className="h-1.5 flex-1 bg-slate-100 dark:bg-slate-800 rounded-full"></div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-sm font-medium text-slate-500">Daily Activity</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">+15%</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">8,432</span>
-              <span className="text-slate-400 text-sm font-medium">steps</span>
-            </div>
-            <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full w-[84%]"></div>
-            </div>
-          </div>
-        </div>
+        
+        <BraceletHealthTracker 
+          isRegistered={isBraceletRegistered} 
+          onRegister={(id) => {
+            setIsBraceletRegistered(true);
+            setBraceletId(id);
+          }} 
+        />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
