@@ -1,16 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function PatientBookingConfirmation({ onNavigate }) {
+  const [booking, setBooking] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('sehat_appointments');
+    if (saved) {
+      const apts = JSON.parse(saved);
+      if (apts.length > 0) {
+        setBooking(apts[apts.length - 1]);
+      }
+    }
+  }, []);
+
   const handleAddToCalendar = () => {
+    if (!booking) return;
     const event = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'BEGIN:VEVENT',
-      'SUMMARY:Appointment with Dr. Sarah Mitchell',
-      'DTSTART:20231024T110000',
-      'DTEND:20231024T120000',
-      "LOCATION:Saint Mary's Specialist Hospital",
-      'DESCRIPTION:Senior Cardiologist appointment.',
+      `SUMMARY:Appointment at ${booking.facility.name}`,
+      `DTSTART:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+      `DTEND:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+      `LOCATION:${booking.facility.location}`,
+      `DESCRIPTION:Medical appointment booked via SehatAI.`,
       'END:VEVENT',
       'END:VCALENDAR'
     ].join('\n');
@@ -18,11 +31,22 @@ export default function PatientBookingConfirmation({ onNavigate }) {
     const blob = new Blob([event], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', 'appointment_dr_mitchell.ics');
+    link.setAttribute('download', `appointment_${booking.facility.name.replace(/\s+/g, '_')}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
+
+  if (!booking) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background-light dark:bg-background-dark h-full">
+         <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 text-center shadow-xl">
+           <h2 className="text-xl font-bold mb-4">No recent booking found</h2>
+           <button onClick={() => onNavigate('dashboard')} className="bg-primary text-white px-6 py-2 rounded-xl font-bold">Go to Dashboard</button>
+         </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-6 font-display bg-background-light dark:bg-background-dark min-h-full pb-12">
@@ -36,7 +60,7 @@ export default function PatientBookingConfirmation({ onNavigate }) {
           <div className="space-y-2">
             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Booking Confirmed!</h1>
             <p className="text-base text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
-                Your appointment has been successfully scheduled. A confirmation email has been sent to your inbox.
+                Your appointment at {booking.facility.name} has been successfully scheduled. A confirmation email has been sent to your inbox.
             </p>
           </div>
         </div>
@@ -47,92 +71,40 @@ export default function PatientBookingConfirmation({ onNavigate }) {
             <h3 className="font-bold text-slate-900 dark:text-white text-base">Appointment Details</h3>
           </div>
           
-          <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
-            <img 
-              src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80" 
-              alt="Hospital" 
-              className="w-[120px] h-[120px] object-cover rounded-xl shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm bg-slate-100"
-            />
-            <div className="flex-1 w-full space-y-5">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-extrabold text-primary mb-1">Doctor</p>
-                <h4 className="text-xl font-extrabold text-slate-900 dark:text-white leading-tight">Dr. Sarah Mitchell</h4>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-0.5">Senior Cardiologist</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-8 pt-1">
-                <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>location_on</span>
-                    Hospital
-                  </p>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-snug">
-                    Saint Mary's Specialist<br/>Hospital
-                  </p>
+          <div className="p-6 flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
+             <div className="size-24 rounded-2xl bg-slate-100 dark:bg-slate-800 p-1">
+                 <img src={booking.facility.image} alt="" className="w-full h-full object-cover rounded-xl" />
+             </div>
+             <div className="flex-1 space-y-4">
+                <div>
+                   <h4 className="text-xl font-bold text-slate-900 dark:text-white">{booking.facility.name}</h4>
+                   <p className="text-slate-500 dark:text-slate-400">{booking.facility.location}</p>
                 </div>
-                <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[14px]">calendar_today</span>
-                    Date & Time
-                  </p>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Oct 24 • 11:00 AM
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Date</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{booking.date}</p>
+                   </div>
+                   <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Time Slot</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{booking.slot}</p>
+                   </div>
                 </div>
-              </div>
-            </div>
+             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-            <button onClick={handleAddToCalendar} className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm shadow-primary/20 text-sm">
-                <span className="material-symbols-outlined text-[18px]">calendar_add_on</span>
-                Add to Calendar
-            </button>
-            <button onClick={() => onNavigate?.('appointments')} className="flex items-center justify-center gap-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-6 py-3 rounded-xl font-bold transition-all text-sm">
-                <span className="material-symbols-outlined text-[18px]">edit_calendar</span>
-                Reschedule
-            </button>
-            <button 
-                onClick={() => onNavigate?.('dashboard')}
-                className="flex items-center justify-center gap-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-6 py-3 rounded-xl font-bold transition-all text-sm"
-            >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back to Dashboard
-            </button>
+        <div className="flex flex-col sm:flex-row gap-4 w-full">
+           <button onClick={handleAddToCalendar} className="flex-1 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 py-4 rounded-2xl font-black text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+             <span className="material-symbols-outlined">calendar_add_on</span>
+             Add to Calendar
+           </button>
+           <button onClick={() => onNavigate('dashboard')} className="flex-1 bg-primary py-4 rounded-2xl font-black text-white hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2">
+             <span className="material-symbols-outlined">dashboard</span>
+             Return to Dashboard
+           </button>
         </div>
-
-        {/* Help Text */}
-        <p className="text-sm text-slate-500 dark:text-slate-400 text-center font-medium">
-            Need help? <button onClick={() => onNavigate?.('support')} className="text-primary font-bold hover:underline cursor-pointer">Contact Support</button> or check our <button onClick={() => onNavigate?.('support')} className="text-primary font-bold hover:underline cursor-pointer">Help Center</button>.
-        </p>
-
-        {/* Map Banner */}
-        <div className="relative w-full h-48 rounded-2xl overflow-hidden shadow-sm group border border-slate-200 dark:border-slate-800 bg-blue-50/50">
-            <img 
-              src="https://www.google.com/maps/d/thumbnail?mid=1rB9ZepWqWw0-y_aY01z_1lA659s&hl=en_US" 
-              alt="Map location" 
-              className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity mix-blend-multiply dark:mix-blend-overlay dark:opacity-30"
-            />
-            
-            <div className="absolute bottom-4 left-4 z-10">
-                <button 
-                  onClick={() => window.open('https://www.google.com/maps/dir/?api=1&destination=Saint+Mary%27s+Specialist+Hospital', '_blank')}
-                  className="bg-white dark:bg-slate-900 text-slate-800 dark:text-white px-4 py-2 rounded-lg font-bold text-[13px] shadow-md hover:shadow-lg transition-shadow border border-slate-100 dark:border-slate-700 cursor-pointer"
-                >
-                    Get Directions
-                </button>
-            </div>
-            
-            {/* Map pin centered */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-               <div className="w-10 h-10 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-lg border-2 border-primary">
-                  <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: '"FILL" 1' }}>location_on</span>
-               </div>
-            </div>
-        </div>
-
       </div>
     </div>
   );

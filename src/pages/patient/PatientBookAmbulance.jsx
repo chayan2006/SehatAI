@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sendEmailNotification } from '@/lib/emailService';
 
 const URGENCY_LEVELS = [
   {
@@ -56,6 +57,14 @@ export default function PatientBookAmbulance({ onNavigate }) {
     setTimeout(() => {
       setDispState('dispatching');
       addLog('Dispatch request received.', 'task_alt', 'text-primary');
+      
+      // Send Emergency Email
+      sendEmailNotification({
+          type: "ambulance",
+          email: "patient@example.com",
+          location: pickup
+      });
+
       setTimeout(() => {
         setDispState('enroute');
         setEta(8);

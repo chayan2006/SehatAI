@@ -13,6 +13,7 @@ import { initPatientAgent } from '@/lib/patientAgent';
 
 import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
+import { sendEmailNotification } from '@/lib/emailService';
 
 export default function PatientDashboard({ onLogout }) {
   const [activeNav, setActiveNav] = useState('dashboard');
@@ -23,10 +24,16 @@ export default function PatientDashboard({ onLogout }) {
   useEffect(() => {
     const setupAgent = async () => {
       try {
-        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+        const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
         if (apiKey) {
           const executor = await initPatientAgent({ apiKey });
           setAgentExecutor(executor);
+          
+          // Trigger Login Email (Simulated)
+          sendEmailNotification({
+            type: "dashboard",
+            email: "patient@example.com", // In a real app, use the logged-in user's email
+          });
         }
       } catch (error) {
         console.error("Failed to initialize Patient AI:", error);
@@ -155,6 +162,28 @@ function NavItem({ id, icon, label, active, onClick }) {
 
 function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
+  const [appointments, setAppointments] = useState([]);
+  const [airQuality, setAirQuality] = useState(null);
+
+  useEffect(() => {
+    try {
+      // 1. Load real appointments
+      const saved = localStorage.getItem('sehat_appointments');
+      if (saved) {
+        setAppointments(JSON.parse(saved));
+      }
+      
+      // 2. Fetch Open-Meteo Air Quality
+      fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.71&longitude=-74.01&hourly=us_aqi')
+        .then(res => res.json())
+        .then(data => {
+          if (data?.hourly?.us_aqi) {
+            const currentAqi = data.hourly.us_aqi[0] || 45;
+            setAirQuality({ aqi: currentAqi });
+          }
+        }).catch(err => console.error('AQI error:', err));
+    } catch (e) { console.error(e); }
+  }, []);
 
 
   const downloadLabResult = (testName, facility, date, status, notes) => {
@@ -228,7 +257,25 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
             <button onClick={() => onNavigate('appointments')} className="text-xs font-semibold text-primary hover:underline">View All</button>
           </div>
           <div className="space-y-4">
-            {showPhysical && (
+            {appointments.length > 0 ? (
+              appointments.map((apt, idx) => (
+                <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
+                      <span className="text-[10px] font-bold uppercase leading-none">{apt.date?.split(' ')[0] || 'Unk'}</span>
+                      <span className="text-lg font-black leading-none">{apt.date?.split(' ')[1]?.replace(',', '') || '0'}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Visit: {apt.facility?.name}</p>
+                      <p className="text-xs text-slate-500">{apt.facility?.location} • {apt.slot}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => onNavigate('appointments')} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 transition-colors">Reschedule</button>
+                  </div>
+                </div>
+              ))
+            ) : showPhysical && (
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 transform origin-top">
                 <div className="flex items-center gap-4 mb-3">
                   <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
@@ -254,18 +301,31 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
                 </div>
               </div>
             )}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm opacity-75">
-              <div className="flex items-center gap-4">
-                <div className="size-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-500">
-                  <span className="text-[10px] font-bold uppercase leading-none">Nov</span>
-                  <span className="text-lg font-black leading-none">12</span>
+            
+            {/* Air Quality API Card */}
+            {airQuality && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30 overflow-hidden relative group">
+                <span className="material-symbols-outlined absolute -right-4 -top-4 text-7xl text-blue-500/10 group-hover:rotate-12 transition-transform">air</span>
+                <div className="flex justify-between items-start mb-1 relative z-10">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Outdoor Health Context</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${airQuality.aqi <= 50 ? 'bg-green-100 text-green-700' : airQuality.aqi <= 100 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                    Live API
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Lab Results Review</p>
-                  <p className="text-xs text-slate-500">Video Consultation • 02:00 PM</p>
+                <div className="relative z-10 space-y-2 mt-2">
+                  <div className="flex items-end gap-2">
+                    <span className="text-3xl font-black text-slate-900 dark:text-white leading-none">{airQuality.aqi}</span>
+                    <span className="text-xs font-bold text-slate-500 pb-0.5">US AQI</span>
+                  </div>
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    {airQuality.aqi <= 50 ? 'Excellent air quality today. Safe for outdoor exercise and rehab.' : 
+                     airQuality.aqi <= 100 ? 'Moderate air quality. Limit prolonged outdoor exertion.' : 
+                     'Unhealthy air. Keep windows closed and avoid outdoor activities.'}
+                  </p>
                 </div>
               </div>
-            </div>
+            )}
+            
           </div>
           </section>
 

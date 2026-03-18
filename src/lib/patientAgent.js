@@ -1,13 +1,14 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatOpenAI } from "@langchain/openai";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { db } from "./database.js";
 import { searchKnowledge } from "./vectorStore.js";
+import { sendEmailNotification } from "./emailService.js";
 
 /**
- * Creates and initializes the Patient Agent using LangChain and Groq Vision.
+ * Creates and initializes the Patient Agent using LangChain and Nvidia (Moonshot Kimi).
  */
 export async function initPatientAgent({ apiKey }) {
 
@@ -31,27 +32,99 @@ export async function initPatientAgent({ apiKey }) {
             description: "Retrieves your upcoming medical checkups and consultations.",
             schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
             func: async () => {
-                return JSON.stringify([
-                    { date: "Oct 24", time: "10:30 AM", doctor: "Dr. Sarah Mitchell", type: "Annual Physical" },
-                    { date: "Nov 12", time: "02:00 PM", doctor: "Video Consultation", type: "Lab Results Review" }
-                ]);
+                const saved = localStorage.getItem('sehat_appointments');
+                if (saved) return saved;
+                return "You have no upcoming appointments.";
             },
         }),
         new DynamicStructuredTool({
-            name: "search_health_advice",
-            description: "Queries the medical knowledge base for first aid, wellness tips, and common health solutions.",
+            name: "manage_appointment",
+            description: "Book, reschedule, or cancel a medical appointment. Use this when the user explicitly asks to cancel or book a specific visit.",
             schema: z.object({
-                query: z.string().describe("The health question or symptom to look up."),
+                action: z.enum(["book", "cancel", "reschedule"]),
+                facility_name: z.string().describe("Name of the hospital or clinic"),
+                date: z.string().describe("Date of the appointment (e.g. 'Oct 24')"),
+                time: z.string().describe("Time slot (e.g. '10:30 AM')"),
             }),
-            func: async ({ query }) => await searchKnowledge(query),
+            func: async ({ action, facility_name, date, time }) => {
+                let apts = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
+                if (action === "cancel") {
+                    apts = apts.filter(a => !(a.date?.includes(date) || a.facility?.name?.toLowerCase().includes(facility_name.toLowerCase())));
+                    localStorage.setItem('sehat_appointments', JSON.stringify(apts));
+                    return `Successfully cancelled the appointment at ${facility_name}.`;
+                } else if (action === "book") {
+                    apts.push({ facility: { name: facility_name, location: "Agent Booked" }, date: date, slot: time });
+                    localStorage.setItem('sehat_appointments', JSON.stringify(apts));
+                    return `Successfully booked appointment at ${facility_name} for ${date} at ${time}.`;
+                }
+                return "Action not supported yet.";
+            },
+        }),
+        new DynamicStructuredTool({
+            name: "log_meal",
+            description: "If the user mentions eating a meal, use this tool to calculate its nutrition and save it to their health log.",
+            schema: z.object({
+                meal_description: z.string().describe("What the user ate (e.g., '1 apple and 2 eggs')"),
+            }),
+            func: async ({ meal_description }) => {
+                const apiKey = import.meta.env.VITE_CALORIE_NINJAS_KEY;
+                if (!apiKey) return "Error: Nutrition API key not found.";
+                try {
+                    const res = await fetch(`https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(meal_description)}`, {
+                        headers: { 'X-Api-Key': apiKey }
+                    });
+                    const data = await res.json();
+                    
+                    if (data.items && data.items.length > 0) {
+                        const totalCalories = data.items.reduce((acc, item) => acc + item.calories, 0);
+                        const totalProtein = data.items.reduce((acc, item) => acc + item.protein_g, 0);
+                        const log = JSON.parse(localStorage.getItem('sehat_nutrition_log') || '[]');
+                        log.push({ date: new Date().toISOString(), meal: meal_description, calories: totalCalories, protein: totalProtein });
+                        localStorage.setItem('sehat_nutrition_log', JSON.stringify(log));
+                        
+                        return `Successfully logged meal. Total Calories: ${totalCalories.toFixed(1)} kcal, Protein: ${totalProtein.toFixed(1)}g.`;
+                    }
+                    return "Could not find nutritional data for that meal.";
+                } catch (e) {
+                    return "Error contacting nutrition API: " + e.message;
+                }
+            },
+        }),
+        new DynamicStructuredTool({
+            name: "analyze_environmental_risk",
+            description: "Checks real-time local Air Quality Index (AQI) to advise if it's safe for outdoor activities.",
+            schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
+            func: async () => {
+                try {
+                    const res = await fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.71&longitude=-74.01&hourly=us_aqi');
+                    const data = await res.json();
+                    const currentAqi = data?.hourly?.us_aqi?.[0] || 45;
+                    return `The current US AQI is ${currentAqi}. Suggest whether this is healthy for the user based on their history.`;
+                } catch (e) {
+                    return "Error fetching Air Quality.";
+                }
+            },
+        }),
+        new DynamicStructuredTool({
+            name: "mark_medication_taken",
+            description: "Marks a specific medication as taken for the current day.",
+            schema: z.object({
+                medication_name: z.string().describe("Name of the pill or medication"),
+            }),
+            func: async ({ medication_name }) => {
+                const todayStr = new Date().toDateString();
+                const key = `sehat_meds_${todayStr}`;
+                const takenMeds = JSON.parse(localStorage.getItem(key) || '{}');
+                takenMeds[medication_name] = true;
+                localStorage.setItem(key, JSON.stringify(takenMeds));
+                return `Marked ${medication_name} as taken for today.`;
+            },
         }),
         new DynamicStructuredTool({
             name: "get_bracelet_live_data",
             description: "Retrieves real-time sensor data from the IoT Smart Health Bracelet (BPM, SpO2, Temp, Steps).",
             schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
             func: async () => {
-                // In a real app, this would fetch from Firebase or ThingSpeak
-                // For this project, we return simulated live data consistent with the UI
                 return JSON.stringify({
                     heartRate: "76 BPM",
                     spo2: "98.5%",
@@ -62,33 +135,38 @@ export async function initPatientAgent({ apiKey }) {
                 });
             },
         }),
+        new DynamicStructuredTool({
+            name: "search_health_advice",
+            description: "Queries the medical knowledge base for first aid, wellness tips, and common health solutions.",
+            schema: z.object({
+                query: z.string().describe("The health question or symptom to look up."),
+            }),
+            func: async ({ query }) => await searchKnowledge(query),
+        }),
     ];
 
-    const llm = new ChatGroq({
+    const llm = new ChatOpenAI({
         apiKey: apiKey,
-        model: "llama-3.3-70b-versatile", // Updated from decommissioned vision model
-        temperature: 0.3,
-        maxRetries: 1,
-        timeout: 20000,
+        modelName: "moonshotai/kimi-k2.5",
+        temperature: 1,
+        maxTokens: 16384,
+        topP: 1,
+        configuration: {
+            baseURL: "http://localhost:3000/api/nvidia/v1",
+            dangerouslyAllowBrowser: true
+        }
     });
 
-
-    const systemInstruction = `You are SehatAI Patient Companion, a caring and knowledgeable AI health assistant.
-    You help patients manage their health records, understand symptoms, and provide first aid advice.
+    const systemInstruction = `You are SehatAI Patient Companion, an autonomous AI health agent.
+    You help patients manage their health records, log meals, book appointments, and provide advice.
     
-    IoT BRACELET:
-    You now have access to the user's "IoT-Based Smart Health Monitoring Bracelet" data via the 'get_bracelet_live_data' tool. 
-    The bracelet uses an ESP32, MAX30102 (HR/SpO2), DS18B20 (Temp), and MPU6050 (Motion).
-    If a user asks about their real-time vitals, use this tool to provide accurate feedback.
+    CAPABILITIES:
+    1. **Meal Logging**: You can calculate calories/macros and log meals autonomously.
+    2. **Appointment Management**: You can book or cancel appointments in the user's local schedule.
+    3. **Environmental Context**: You check real-time Air Quality to advise on outdoor safety.
+    4. **IoT Integration**: You read live data from the Smart Health Bracelet.
     
-    GUIDELINES:
-    1. **Empathy**: Always be kind and supportive.
-    2. **Safety**: If a user describes a life-threatening emergency, immediately advise them to call emergency services.
-    3. **First Aid**: For minor issues like cuts, scrapes, or common colds, provide clear, step-by-step solutions.
-    4. **Visualization**: You can "see" images. If a user uploads a photo of a wound or a report, analyze it carefully.
-    
-    You have access to the user's vitals and appointments. Use them to provide personalized advice.
-    Reply in the user's language (English, Hindi, or Hinglish). Keep responses clear and actionable.`;
+    REPLY in the user's language (English, Hindi, Hinglish). Be empathetic but actionable.`;
 
     const agent = createReactAgent({
         llm,
@@ -119,10 +197,10 @@ export async function initPatientAgent({ apiKey }) {
                 });
 
                 const finalMsg = response.messages[response.messages.length - 1];
-                return { output: finalMsg.content || "I have analyzed your request. Please let me know if you need more help." };
+                return { output: finalMsg.content || "Action completed by agent." };
             } catch (error) {
                 console.error("Patient Agent error:", error);
-                return { output: `Health Assistant is currently busy: ${error.message}` };
+                return { output: `Health Assistant error: ${error.message}` };
             }
         },
     };
