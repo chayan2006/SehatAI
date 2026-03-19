@@ -14,6 +14,7 @@ import { initPatientAgent } from '@/lib/patientAgent';
 
 import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
+import { sendEmailNotification } from '@/lib/emailService';
 
 export default function PatientDashboard({ onLogout }) {
   const navigate = useNavigate();
@@ -30,10 +31,16 @@ export default function PatientDashboard({ onLogout }) {
   useEffect(() => {
     const setupAgent = async () => {
       try {
-        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+        const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
         if (apiKey) {
           const executor = await initPatientAgent({ apiKey });
           setAgentExecutor(executor);
+
+          // Trigger Login Email
+          sendEmailNotification({
+            type: "dashboard",
+            email: "patient@example.com",
+          });
         }
       } catch (error) {
         console.error("Failed to initialize Patient AI:", error);

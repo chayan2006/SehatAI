@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { sendEmailNotification } from '@/lib/emailService';
 
 const INITIAL_SCHEDULE = [
   { id: 1, time: '08:00', period: 'AM', name: 'Atorvastatin - 20mg', instructions: 'Take with food', icon: 'restaurant', extra: 'Oral Tablet', extraIcon: 'local_pharmacy', taken: false, disabled: false },
@@ -27,6 +28,16 @@ export default function PatientMedications({ onNavigate }) {
   const [historyShown, setHistoryShown] = useState(3);
   const [toast, setToast] = useState(null);
 
+  useEffect(() => {
+    const todayStr = new Date().toDateString();
+    const key = `sehat_meds_${todayStr}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const takenMeds = JSON.parse(saved);
+      setSchedule(prev => prev.map(s => takenMeds[s.name] ? { ...s, taken: true } : s));
+    }
+  }, []);
+
   const takenCount = schedule.filter(s => s.taken).length;
   const totalEnabled = schedule.filter(s => !s.disabled).length;
   const adherence = Math.round(((takenCount / Math.max(totalEnabled, 1)) * 6 + 94) / 2); // blend today into monthly
@@ -37,7 +48,34 @@ export default function PatientMedications({ onNavigate }) {
   };
 
   const markTaken = (id) => {
-    setSchedule(prev => prev.map(s => s.id === id ? { ...s, taken: true } : s));
+    setSchedule(prev => prev.map(s => {
+      if (s.id === id) {
+        const todayStr = new Date().toDateString();
+        const key = `sehat_meds_${todayStr}`;
+        const takenMeds = JSON.parse(localStorage.getItem(key) || '{}');
+        takenMeds[s.name] = true;
+        localStorage.setItem(key, JSON.stringify(takenMeds));
+        
+        // Send Email
+        sendEmailNotification({
+          type: "medication",
+          email: "patient@example.com",
+          medication: s.name
+        });
+
+        // Simulate Course Completion for Metformin (id: 3)
+        if (s.id === 3) {
+          sendEmailNotification({
+            type: "course_complete",
+            email: "patient@example.com",
+            medication: s.name
+          });
+        }
+
+        return { ...s, taken: true };
+      }
+      return s;
+    }));
     showToast('Medication logged successfully!');
   };
 
@@ -55,6 +93,13 @@ export default function PatientMedications({ onNavigate }) {
 
   const handleRefillSubmit = () => {
     setRefillSubmitted(true);
+    
+    // Send Refill Email
+    sendEmailNotification({
+      type: "refill",
+      email: "patient@example.com",
+    });
+
     setTimeout(() => { setShowRefillModal(false); setRefillSubmitted(false); showToast('Refill request sent to your pharmacy!'); }, 1800);
   };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sendEmailNotification } from '@/lib/emailService';
 import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isAfter, startOfDay, isSameDay, addMonths, isSameMonth } from 'date-fns';
 
 const FACILITIES = [
@@ -266,7 +267,27 @@ export default function PatientAppointments({ onNavigate }) {
                                             Consultation from <span className="font-extrabold text-slate-900 dark:text-white ml-0.5">${fac.price}</span>
                                         </div>
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); onNavigate?.('confirmation'); }}
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              const newApt = {
+                                                facility: fac,
+                                                date: selectedDate,
+                                                slot: selectedSlot
+                                              };
+                                              const existing = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
+                                              localStorage.setItem('sehat_appointments', JSON.stringify([...existing, newApt]));
+                                              
+                                              // Send Email
+                                              sendEmailNotification({
+                                                  type: "appointment",
+                                                  email: "patient@example.com",
+                                                  facility: fac.name,
+                                                  date: selectedDate,
+                                                  time: selectedSlot
+                                              });
+
+                                              onNavigate?.('confirmation'); 
+                                            }}
                                             className="bg-primary hover:bg-primary/90 text-white font-bold text-sm px-6 py-2.5 rounded-lg shadow-sm shadow-primary/20 transition-colors cursor-pointer"
                                         >
                                             Book Now
