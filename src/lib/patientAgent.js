@@ -8,7 +8,7 @@ import { searchKnowledge } from "./vectorStore.js";
 import { sendEmailNotification } from "./emailService.js";
 
 /**
- * Creates and initializes the Patient Agent using LangChain and Nvidia (Moonshot Kimi).
+ * Creates and initializes the Patient Agent using LangChain and Nvidia NIM.
  */
 export async function initPatientAgent({ apiKey }) {
 
@@ -51,10 +51,24 @@ export async function initPatientAgent({ apiKey }) {
                 if (action === "cancel") {
                     apts = apts.filter(a => !(a.date?.includes(date) || a.facility?.name?.toLowerCase().includes(facility_name.toLowerCase())));
                     localStorage.setItem('sehat_appointments', JSON.stringify(apts));
+                    
+                    await sendEmailNotification({
+                        type: "appointment",
+                        email: "patient@example.com",
+                        details: { action: "cancelled", facility: facility_name, date }
+                    });
+                    
                     return `Successfully cancelled the appointment at ${facility_name}.`;
                 } else if (action === "book") {
                     apts.push({ facility: { name: facility_name, location: "Agent Booked" }, date: date, slot: time });
                     localStorage.setItem('sehat_appointments', JSON.stringify(apts));
+                    
+                    await sendEmailNotification({
+                        type: "appointment",
+                        email: "patient@example.com",
+                        details: { action: "booked", facility: facility_name, date, time }
+                    });
+                    
                     return `Successfully booked appointment at ${facility_name} for ${date} at ${time}.`;
                 }
                 return "Action not supported yet.";
@@ -151,9 +165,15 @@ export async function initPatientAgent({ apiKey }) {
         temperature: 1,
         maxTokens: 16384,
         topP: 1,
+        model_kwargs: {
+            "chat_template_kwargs": { "thinking": true }
+        },
         configuration: {
-            baseURL: "http://localhost:3000/api/nvidia/v1",
-            dangerouslyAllowBrowser: true
+            baseURL: window.location.origin + "/api/nvidia/v1",
+            dangerouslyAllowBrowser: true,
+            defaultHeaders: {
+                "Accept": "application/json"
+            }
         }
     });
 

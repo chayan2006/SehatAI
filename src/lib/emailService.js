@@ -24,7 +24,7 @@ export const sendEmailNotification = async (payload) => {
         // Note: With no-cors, we can't read the response body, but the request will still fire.
         return { status: "success", message: "Email request sent" };
     } catch (error) {
-        console.error("Email Automation Error:", error);
-        return { status: "error", message: error.message };
+        console.error("SehatAI Email Service Error:", error);
+        return { status: "error", message: `Network or Script error: ${error.message}` };
     }
 };

@@ -63,6 +63,15 @@ export default function PatientMedications({ onNavigate }) {
           medication: s.name
         });
 
+        // Simulate Course Completion for Metformin (id: 3)
+        if (s.id === 3) {
+          sendEmailNotification({
+            type: "course_complete",
+            email: "patient@example.com",
+            medication: s.name
+          });
+        }
+
         return { ...s, taken: true };
       }
       return s;
@@ -84,6 +93,13 @@ export default function PatientMedications({ onNavigate }) {
 
   const handleRefillSubmit = () => {
     setRefillSubmitted(true);
+    
+    // Send Refill Email
+    sendEmailNotification({
+      type: "refill",
+      email: "patient@example.com",
+    });
+
     setTimeout(() => { setShowRefillModal(false); setRefillSubmitted(false); showToast('Refill request sent to your pharmacy!'); }, 1800);
   };
 
