@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import PatientMedications from './PatientMedications';
 import PatientAppointments from './PatientAppointments';
 import PatientHistory from './PatientHistory';
@@ -6,7 +7,7 @@ import PatientAmbulance from './PatientAmbulance';
 import PatientBookAmbulance from './PatientBookAmbulance';
 
 import PatientBookingConfirmation from './PatientBookingConfirmation';
-import Settings from '../Settings';
+import PatientSettings from './PatientSettings';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
@@ -15,10 +16,16 @@ import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
 
 export default function PatientDashboard({ onLogout }) {
-  const [activeNav, setActiveNav] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [isBraceletRegistered, setIsBraceletRegistered] = useState(false);
   const [braceletId, setBraceletId] = useState('');
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Extract current path segment
+  const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
 
   useEffect(() => {
     const setupAgent = async () => {
@@ -35,22 +42,21 @@ export default function PatientDashboard({ onLogout }) {
     setupAgent();
   }, []);
 
+  // Proper click-outside-to-close logic
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowNotifDropdown(false);
+      setShowProfileMenu(false);
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
-
-  const renderContent = () => {
-    switch (activeNav) {
-      case 'dashboard': return <DashboardView onNavigate={setActiveNav} />;
-      case 'appointments': return <PatientAppointments onNavigate={setActiveNav} />;
-      case 'confirmation': return <PatientBookingConfirmation onNavigate={setActiveNav} />;
-      case 'health': return <PatientHistory onNavigate={setActiveNav} />;
-      case 'medications': return <PatientMedications onNavigate={setActiveNav} />;
-      case 'support': return <PatientAmbulance onNavigate={setActiveNav} />;
-      case 'ambulance': return <PatientBookAmbulance onNavigate={setActiveNav} />;
-
-      case 'settings': return <Settings onNavigate={setActiveNav} />;
-      default: return <DashboardView onNavigate={setActiveNav} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />;
-    }
-  };
+  const notifications = [
+    { id: 1, text: "Your checkup is confirmed for Oct 24.", time: "2h ago", icon: "event_available", color: "text-emerald-500" },
+    { id: 2, text: "New lab results are available for review.", time: "5h ago", icon: "description", color: "text-primary" },
+    { id: 3, text: "Critical: O2 Desaturation trend detected.", time: "1d ago", icon: "error", color: "text-red-500" },
+  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased font-display">
@@ -66,12 +72,12 @@ export default function PatientDashboard({ onLogout }) {
           </div>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1">
-          <NavItem id="dashboard" icon="dashboard" label="Dashboard" active={activeNav} onClick={setActiveNav} />
-          <NavItem id="appointments" icon="calendar_month" label="Appointments" active={activeNav} onClick={setActiveNav} />
-          <NavItem id="health" icon="favorite" label="My Health" active={activeNav} onClick={setActiveNav} />
-          <NavItem id="medications" icon="pill" label="Medications" active={activeNav} onClick={setActiveNav} />
-          <NavItem id="support"    icon="support_agent"  label="Support"       active={activeNav} onClick={setActiveNav} />
-          <NavItem id="ambulance"  icon="ambulance"      label="Book Ambulance" active={activeNav} onClick={setActiveNav} />
+          <NavItem id="dashboard" icon="dashboard" label="Dashboard" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="appointments" icon="calendar_month" label="Appointments" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="health" icon="favorite" label="My Health" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="medications" icon="pill" label="Medications" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="support"    icon="support_agent"  label="Support"       active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="ambulance"  icon="ambulance"      label="Book Ambulance" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
         </nav>
         <div className="p-4 border-t border-slate-200 dark:border-slate-800">
           <div className="bg-primary/5 rounded-xl p-4">
@@ -84,9 +90,9 @@ export default function PatientDashboard({ onLogout }) {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <header className="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 relative z-20">
           <div className="flex items-center flex-1">
-            {activeNav === 'confirmation' ? (
+            {currentPathSegment === 'confirmation' ? (
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">Appointment Confirmation</h2>
             ) : (
               <div className="relative w-full max-w-md">
@@ -96,27 +102,102 @@ export default function PatientDashboard({ onLogout }) {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg relative">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-            </button>
-            <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setActiveNav('settings')}>
+            <div className="relative">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowNotifDropdown(!showNotifDropdown); setShowProfileMenu(false); }}
+                className={`p-2 rounded-lg relative transition-colors ${showNotifDropdown ? 'bg-primary/10 text-primary' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+              </button>
+              
+              {showNotifDropdown && (
+                <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <h4 className="font-bold text-sm">Notifications</h4>
+                    <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full cursor-pointer hover:bg-primary/20 transition-colors uppercase">Mark all read</span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.map(n => (
+                      <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none">
+                        <span className={`material-symbols-outlined text-lg ${n.color}`}>{n.icon}</span>
+                        <div>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-snug">{n.text}</p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">{n.time}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-slate-100 dark:border-slate-800">
+                    <button className="w-full py-2 text-xs font-bold text-slate-500 hover:text-primary transition-colors text-center">View Notifications Center</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => navigate('/patient/settings')}>
               <span className="material-symbols-outlined">settings</span>
             </button>
             <div className="h-8 w-px bg-slate-200 dark:border-slate-800 mx-2"></div>
-            <div className="flex items-center gap-3 cursor-pointer" onClick={onLogout}>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">Alex Johnson</p>
-                <p className="text-[11px] text-slate-500">Patient ID: #4492-B</p>
+            
+            <div className="relative">
+              <div 
+                className={`flex items-center gap-3 cursor-pointer p-1 rounded-lg transition-colors ${showProfileMenu ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); setShowNotifDropdown(false); }}
+              >
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Alex Johnson</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Patient ID: #4492-B</p>
+                </div>
+                <img alt="Profile picture of Alex Johnson" className="size-10 rounded-full object-cover border-2 border-primary/20 hover:border-primary transition-colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWciI4_x9AkulnZp4e-4C_Z_O4IaufaxCEYBs-g2HbwF8Kec5hX13HEdahW8kLrXTTY6B6FzaWga0S8miuGnyK3Eehr2mgR2BD2Fm8iN5hppqndm_6RTM-WQmZpHdeQj2bt_M8Y1gMQGlJvQXq8Ibg2s6CJIGJLLL1yuoMzublG-RnUmcEFcMi3jWnTkejN1s9hNdkY_TEdeaBH1bDSUNbf6wMblePLmtO9Gfry6B0WY0AfJEP5mCS5Tohw4AK43YTS2nCCbLeS_Q" />
               </div>
-              <img alt="Profile picture of Alex Johnson" className="size-10 rounded-full object-cover border-2 border-primary/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWciI4_x9AkulnZp4e-4C_Z_O4IaufaxCEYBs-g2HbwF8Kec5hX13HEdahW8kLrXTTY6B6FzaWga0S8miuGnyK3Eehr2mgR2BD2Fm8iN5hppqndm_6RTM-WQmZpHdeQj2bt_M8Y1gMQGlJvQXq8Ibg2s6CJIGJLLL1yuoMzublG-RnUmcEFcMi3jWnTkejN1s9hNdkY_TEdeaBH1bDSUNbf6wMblePLmtO9Gfry6B0WY0AfJEP5mCS5Tohw4AK43YTS2nCCbLeS_Q" />
+              
+              {showProfileMenu && (
+                <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 mb-2">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Account</p>
+                  </div>
+                  <button 
+                    onClick={() => { navigate('/patient/settings'); setShowProfileMenu(false); }}
+                    className="w-full px-4 py-2 flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg">person</span>
+                    Profile Settings
+                  </button>
+                  <button 
+                    onClick={() => { navigate('/patient/health'); setShowProfileMenu(false); }}
+                    className="w-full px-4 py-2 flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg">history</span>
+                    Medical Records
+                  </button>
+                  <div className="my-2 border-t border-slate-100 dark:border-slate-800"></div>
+                  <button 
+                    onClick={onLogout}
+                    className="w-full px-4 py-2 flex items-center gap-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg">logout</span>
+                    Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
 
         {/* Content Scrollable */}
-        <div className="flex-1 overflow-y-auto">
-          {renderContent()}
+        <div className="flex-1 overflow-y-auto no-scrollbar" onClick={() => { setShowNotifDropdown(false); setShowProfileMenu(false); }}>
+          <Routes>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardView onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
+            <Route path="appointments" element={<PatientAppointments onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="confirmation" element={<PatientBookingConfirmation onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="health" element={<PatientHistory onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="medications" element={<PatientMedications onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="support" element={<PatientAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="ambulance" element={<PatientBookAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="settings" element={<PatientSettings onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+          </Routes>
         </div>
 
         {/* AI Assistant */}
@@ -131,7 +212,6 @@ export default function PatientDashboard({ onLogout }) {
         )}
       </main>
     </div>
-
   );
 }
 

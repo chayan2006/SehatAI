@@ -1,11 +1,13 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 
-export default function PortalLogin({ onLogin, initialRole = "doctor" }) {
+export default function PortalLogin({ onLogin }) {
+  const { loginRole } = useParams();
   const [mode, setMode] = useState("signin");
   const [role, setRole] = useState(
-    initialRole === "doctor"
+    loginRole === "doctor"
       ? "Hospital"
-      : initialRole === "patient"
+      : loginRole === "patient"
         ? "Patient"
         : "Admin",
   );

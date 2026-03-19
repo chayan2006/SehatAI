@@ -90,9 +90,15 @@ function exportPDF(data, title = 'SehatAI System Report') {
     doc.save('sehatai_report.pdf');
 }
 
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function AdminDashboard() {
-    const [activeNav, setActiveNav] = useState('dashboard');
+export default function AdminDashboard({ role, onLogout }) {
+    const navigate = useNavigate();
+    const location = useLocation();
+    
+    // Extract current tab from URL
+    const activeNav = location.pathname.split('/').pop() || 'dashboard';
     const [escalations, setEscalations] = useState(INITIAL_ESCALATIONS);
     const [agents, setAgents] = useState(INITIAL_AGENTS);
     const [patientCount, setPatientCount] = useState(1284);
@@ -378,22 +384,22 @@ export default function AdminDashboard() {
     const criticalCount = escalations.filter(e => !e.resolved && e.severity === 'critical').length;
 
     // ─── Render Page Content ──────────────────────────────────────────────────────
-    const renderContent = () => {
-        switch (activeNav) {
-            case 'dashboard': return <DashboardView />;
-            case 'patients': return <PatientMonitoringView />;
-            case 'agents': return <AgentStatusView />;
-            case 'escalations': return <EscalationsView />;
-            case 'security': return <SecurityView />;
-            case 'profile': return <ProfileView />;
-            case 'analytics': return <AnalyticsView />;
-            case 'resources': return <ResourcesView />;
-            case 'ward': return <WardView />;
-            case 'staff': return <StaffView onBroadcast={dispatchBroadcast} />;
-            case 'audit': return <AuditView liveLogs={auditLog} />;
-            default: return <DashboardView />;
-        }
-    };
+    const DashboardRoutes = () => (
+        <Routes>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="dashboard" element={<DashboardView />} />
+            <Route path="patients" element={<PatientMonitoringView />} />
+            <Route path="agents" element={<AgentStatusView />} />
+            <Route path="escalations" element={<EscalationsView />} />
+            <Route path="security" element={<SecurityView />} />
+            <Route path="profile" element={<ProfileView />} />
+            <Route path="analytics" element={<AnalyticsView />} />
+            <Route path="resources" element={<ResourcesView />} />
+            <Route path="ward" element={<WardView />} />
+            <Route path="staff" element={<StaffView onBroadcast={dispatchBroadcast} />} />
+            <Route path="audit" element={<AuditView liveLogs={auditLog} />} />
+        </Routes>
+    );
 
     // ─── NEW EXPANSION VIEWS (Placeholders) ───────────────────────────────────────
     // Placeholder functions removed. Components are now imported natively.
@@ -2003,7 +2009,7 @@ export default function AdminDashboard() {
                         return (
                             <button
                                 key={item.id}
-                                onClick={() => setActiveNav(item.id)}
+                                onClick={() => navigate(`/admin/${item.id}`)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: active ? '#f0fdf8' : 'transparent', color: active ? '#10b77f' : '#64748b', fontWeight: active ? 700 : 500, fontSize: 14, width: '100%', transition: 'all .15s', position: 'relative' }}
                             >
                                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{item.icon}</span>
@@ -2023,7 +2029,7 @@ export default function AdminDashboard() {
                             <p style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dr. Sarah Chen</p>
                             <p style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Sr. AI Architect</p>
                         </div>
-                        <button onClick={() => window.location.reload()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Sign out">
+                        <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Sign out">
                             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
                         </button>
                     </div>
@@ -2049,7 +2055,7 @@ export default function AdminDashboard() {
                             ).map(([label, target]) => (
                                 <button
                                     key={label}
-                                    onClick={() => setActiveNav(target)}
+                                    onClick={() => navigate(`/admin/${target}`)}
                                     style={{ fontSize: 13, fontWeight: activeNav === target ? 700 : 500, color: activeNav === target ? '#10b77f' : '#64748b', border: 'none', background: 'none', cursor: 'pointer', padding: '2px 0', borderBottom: activeNav === target ? '2px solid #10b77f' : '2px solid transparent', transition: 'all 0.15s' }}
                                 >{label}</button>
                             ))}
@@ -2070,7 +2076,7 @@ export default function AdminDashboard() {
                     </div>
                 </header>
 
-                {renderContent()}
+                <DashboardRoutes />
             </main>
 
             {/* ── Agent Floating Chat (Shared Component) ── */}
