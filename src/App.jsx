@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Login from '@/pages/Login';
 import PortalLogin from '@/pages/PortalLogin';
 import AdminLogin from '@/pages/AdminLogin';
@@ -10,75 +11,101 @@ import PatientDashboard from '@/pages/patient/PatientDashboard';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login' | 'portal_login'
-  const [loginRole, setLoginRole] = useState('doctor');
-  const [role, setRole] = useState('doctor');
+  const [role, setRole] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  if (!isAuthenticated) {
-    if (authStep === 'gateway') {
-      return (
-        <Login
-          onLogin={(selectedRole) => {
-            if (selectedRole === 'admin') {
-              setRole('admin');
-              setAuthStep('admin_login');
-            } else {
-              setLoginRole(selectedRole);
-              setAuthStep('portal_login');
-            }
-          }}
-        />
-      );
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setRole(null);
+    navigate('/');
+  };
+
+  // Protect routes and handle role-based redirection
+  useEffect(() => {
+    if (isAuthenticated && role) {
+      if (location.pathname === '/' || location.pathname === '/login' || location.pathname.startsWith('/portal')) {
+        navigate(`/${role}/dashboard`);
+      }
     }
+  }, [isAuthenticated, role, location.pathname, navigate]);
 
-    if (authStep === 'portal_login') {
-      return (
-        <PortalLogin
-          initialRole={loginRole}
-          onLogin={(selectedRole) => {
+  return (
+    <Routes>
+      <Route 
+        path="/" 
+        element={
+          <Login onLogin={(selectedRole) => {
+            if (selectedRole === 'admin') {
+              navigate('/admin/login');
+            } else {
+              navigate(`/portal/${selectedRole}`);
+            }
+          }} />
+        } 
+      />
+      
+      <Route 
+        path="/portal/:loginRole" 
+        element={
+          <PortalLogin onLogin={(selectedRole) => {
             if (selectedRole === 'gateway_back') {
-              setAuthStep('gateway');
+              navigate('/');
             } else if (selectedRole === 'admin') {
-              setRole('admin');
-              setAuthStep('admin_login');
+              navigate('/admin/login');
             } else {
               setRole(selectedRole);
               setIsAuthenticated(true);
+              navigate(`/${selectedRole}/dashboard`);
             }
-          }}
-        />
-      );
-    }
+          }} />
+        } 
+      />
 
-    if (authStep === 'admin_login') {
-      return (
-        <AdminLogin
-          onConfirm={() => setIsAuthenticated(true)}
-          onBack={() => setAuthStep('gateway')}
-        />
-      );
-    }
-  }
+      <Route 
+        path="/admin/login" 
+        element={
+          <AdminLogin 
+            onConfirm={() => {
+              setRole('admin');
+              setIsAuthenticated(true);
+              navigate('/admin/dashboard');
+            }} 
+            onBack={() => navigate('/')} 
+          />
+        } 
+      />
 
-  // Handle Logout
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setAuthStep('gateway');
-  };
+      {/* Role-Based Protected Dashboards */}
+      <Route 
+        path="/admin/*" 
+        element={
+          isAuthenticated && role === 'admin' 
+            ? <AdminDashboard role={role} onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
+      
+      <Route 
+        path="/doctor/*" 
+        element={
+          isAuthenticated && role === 'doctor' 
+            ? <DoctorDashboard onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
+      
+      <Route 
+        path="/patient/*" 
+        element={
+          isAuthenticated && role === 'patient' 
+            ? <PatientDashboard onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
 
-  // Main Portal Entry Points
-  if (role === 'admin') {
-    return <AdminDashboard role={role} onLogout={handleLogout} />;
-  }
-
-  if (role === 'doctor') {
-    return <DoctorDashboard onLogout={handleLogout} />;
-  }
-
-  if (role === 'patient') {
-    return <PatientDashboard onLogout={handleLogout} />;
-  }
-
-  return null;
+      {/* Catch-all for undefined routes */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
-
