@@ -157,6 +157,23 @@ export async function initPatientAgent({ apiKey }) {
             }),
             func: async ({ query }) => await searchKnowledge(query),
         }),
+        new DynamicStructuredTool({
+            name: "send_official_email",
+            description: "Sends an official email notification to you or SehatAI support from sehataisupport@gmail.com. Use this for reports, receipts, or official communication.",
+            schema: z.object({
+                to: z.string().email().describe("Recipient email address."),
+                subject: z.string().describe("Subject of the email."),
+                body: z.string().describe("Content of the email message.")
+            }),
+            func: async ({ to, subject, body }) => {
+                await sendEmailNotification({
+                    type: "general",
+                    email: to,
+                    details: { subject, body, from: "sehataisupport@gmail.com" }
+                });
+                return `Email with subject "${subject}" successfully queued for delivery to ${to} via SehatAI Official Support.`;
+            }
+        }),
     ];
 
     const llm = new ChatOpenAI({

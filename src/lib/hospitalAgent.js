@@ -12,6 +12,8 @@ import { z } from "zod";
 import { db } from "./database.js";
 import { searchKnowledge, addMemory } from "./vectorStore.js";
 
+import { sendEmailNotification } from "./emailService.js";
+
 /**
  * Creates and initializes the Hospital Agent using LangChain, Groq, and RAG.
  */
@@ -62,6 +64,23 @@ export async function initHospitalAgent({ apiKey }) {
             func: async ({ bedId, status }) => {
                 await db.logAction("HospitalAgent", "BedUpdate", `Bed ${bedId} shifted to ${status}`);
                 return `Bed registry record for #${bedId} updated.`;
+            }
+        }),
+        new DynamicStructuredTool({
+            name: "send_official_email",
+            description: "Sends an official email notification to a user or staff member from sehataisupport@gmail.com.",
+            schema: z.object({
+                to: z.string().email().describe("Recipient email address."),
+                subject: z.string().describe("Subject of the email."),
+                body: z.string().describe("Content of the email message.")
+            }),
+            func: async ({ to, subject, body }) => {
+                await sendEmailNotification({
+                    type: "general",
+                    email: to,
+                    details: { subject, body, from: "sehataisupport@gmail.com" }
+                });
+                return `Email with subject "${subject}" successfully queued for delivery to ${to} via SehatAI Official Support.`;
             }
         })
     ];
