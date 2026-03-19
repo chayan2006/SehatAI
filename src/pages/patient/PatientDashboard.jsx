@@ -24,6 +24,7 @@ export default function PatientDashboard({ onLogout }) {
   const [braceletId, setBraceletId] = useState('');
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const userName = localStorage.getItem('sehat_user_name') || "Alex Johnson";
 
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
@@ -153,10 +154,10 @@ export default function PatientDashboard({ onLogout }) {
                 onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); setShowNotifDropdown(false); }}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Alex Johnson</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{userName}</p>
                   <p className="text-[11px] text-slate-500 font-medium">Patient ID: #4492-B</p>
                 </div>
-                <img alt="Profile picture of Alex Johnson" className="size-10 rounded-full object-cover border-2 border-primary/20 hover:border-primary transition-colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWciI4_x9AkulnZp4e-4C_Z_O4IaufaxCEYBs-g2HbwF8Kec5hX13HEdahW8kLrXTTY6B6FzaWga0S8miuGnyK3Eehr2mgR2BD2Fm8iN5hppqndm_6RTM-WQmZpHdeQj2bt_M8Y1gMQGlJvQXq8Ibg2s6CJIGJLLL1yuoMzublG-RnUmcEFcMi3jWnTkejN1s9hNdkY_TEdeaBH1bDSUNbf6wMblePLmtO9Gfry6B0WY0AfJEP5mCS5Tohw4AK43YTS2nCCbLeS_Q" />
+                <img alt={`Profile picture of ${userName}`} className="size-10 rounded-full object-cover border-2 border-primary/20 hover:border-primary transition-colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWciI4_x9AkulnZp4e-4C_Z_O4IaufaxCEYBs-g2HbwF8Kec5hX13HEdahW8kLrXTTY6B6FzaWga0S8miuGnyK3Eehr2mgR2BD2Fm8iN5hppqndm_6RTM-WQmZpHdeQj2bt_M8Y1gMQGlJvQXq8Ibg2s6CJIGJLLL1yuoMzublG-RnUmcEFcMi3jWnTkejN1s9hNdkY_TEdeaBH1bDSUNbf6wMblePLmtO9Gfry6B0WY0AfJEP5mCS5Tohw4AK43YTS2nCCbLeS_Q" />
               </div>
               
               {showProfileMenu && (
@@ -196,7 +197,7 @@ export default function PatientDashboard({ onLogout }) {
         <div className="flex-1 overflow-y-auto no-scrollbar" onClick={() => { setShowNotifDropdown(false); setShowProfileMenu(false); }}>
           <Routes>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardView onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
+            <Route path="dashboard" element={<DashboardView userName={userName} onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
             <Route path="appointments" element={<PatientAppointments onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="confirmation" element={<PatientBookingConfirmation onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="health" element={<PatientHistory onNavigate={(id) => navigate(`/patient/${id}`)} />} />
@@ -212,7 +213,7 @@ export default function PatientDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Health Companion"
-            initialMessage="Hi Alex! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!"
+            initialMessage={`Hi ${userName.split(' ')[0]}! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!`}
             welcomeTitle="Patient Agentic Assistant"
             themeColor="#10b77f"
           />
@@ -240,7 +241,7 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
+function DashboardView({ userName, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
 
 
@@ -272,7 +273,7 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
       {/* Welcome Section */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Welcome back, Alex</h2>
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Welcome back, {userName.split(' ')[0]}</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Your vitals are looking stable. 3 tasks need your attention today.</p>
         </div>
         <button onClick={() => onNavigate('appointments')} className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:brightness-105 transition-all">

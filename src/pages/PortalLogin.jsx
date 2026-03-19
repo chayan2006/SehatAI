@@ -12,6 +12,8 @@ export default function PortalLogin({ onLogin }) {
         : "Admin",
   );
 
+  const [userName, setUserName] = useState("");
+
   // Convert Interface role to internal role
   const getInternalRole = (displayRole) => {
     if (displayRole === "Hospital") return "doctor";
@@ -22,7 +24,7 @@ export default function PortalLogin({ onLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onLogin(getInternalRole(role));
+    onLogin(getInternalRole(role), userName || "Alex Johnson");
   };
 
   return (
@@ -82,6 +84,8 @@ export default function PortalLogin({ onLogin }) {
                         </span>
                         <input
                           className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+                          onChange={(e) => setUserName(e.target.value)}
+                          value={userName}
                           placeholder="Enter hospital name"
                           type="text"
                           required
@@ -103,6 +107,8 @@ export default function PortalLogin({ onLogin }) {
                           placeholder="Enter your name"
                           type="text"
                           required
+                          value={userName}
+                          onChange={(e) => setUserName(e.target.value)}
                         />
                       </div>
                     </div>
@@ -121,6 +127,8 @@ export default function PortalLogin({ onLogin }) {
                           placeholder="Enter your name"
                           type="text"
                           required
+                          value={userName}
+                          onChange={(e) => setUserName(e.target.value)}
                         />
                       </div>
                     </div>

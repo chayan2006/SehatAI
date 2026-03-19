@@ -24,6 +24,7 @@ export default function DoctorDashboard({ onLogout }) {
   const location = useLocation();
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [stats, setStats] = useState({ totalPatients: 0, activeEmergencies: 0, occupancy: '0%' });
+  const userName = localStorage.getItem('sehat_user_name') || "Dr. Sarah Chen";
 
   // Extract current tab from URL
   const activeTab = location.pathname.split('/').pop() || 'dashboard';
@@ -88,7 +89,7 @@ export default function DoctorDashboard({ onLogout }) {
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800"></div>
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onLogout}>
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-black text-slate-900 dark:text-white leading-none">Dr. Sarah Chen</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white leading-none">{userName}</p>
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-tighter mt-1">Chief Medical Officer</p>
               </div>
               <img 
@@ -123,7 +124,7 @@ export default function DoctorDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Clinical Assistant"
-            initialMessage="Hello Dr. Miller. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information."
+            initialMessage={`Hello ${userName}. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information.`}
             welcomeTitle="Clinical Agentic Suite"
             themeColor="#00b289"
           />

@@ -18,6 +18,7 @@ export default function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setRole(null);
+    localStorage.removeItem('sehat_user_name');
     navigate('/');
   };
 
@@ -48,12 +49,13 @@ export default function App() {
       <Route 
         path="/portal/:loginRole" 
         element={
-          <PortalLogin onLogin={(selectedRole) => {
+          <PortalLogin onLogin={(selectedRole, name) => {
             if (selectedRole === 'gateway_back') {
               navigate('/');
             } else if (selectedRole === 'admin') {
               navigate('/admin/login');
             } else {
+              localStorage.setItem('sehat_user_name', name || "Alex Johnson");
               setRole(selectedRole);
               setIsAuthenticated(true);
               navigate(`/${selectedRole}/dashboard`);
