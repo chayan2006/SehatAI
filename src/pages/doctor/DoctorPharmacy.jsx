@@ -53,7 +53,7 @@ function getStockBadge(status) {
   return status === 'In Stock' ? 'bg-[#00b289]/10 text-[#00b289]' : status === 'Low Stock' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
 }
 
-function Badge({ children, className = '' }) {
+function StatusBadge({ children, className = '' }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${className}`}>{children}</span>;
 }
 
@@ -399,7 +399,7 @@ export default function DoctorPharmacy() {
         <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-wrap gap-3">
           <div className="flex items-center gap-2 text-red-700 font-black text-[10px] uppercase tracking-widest w-full">
             <AlertTriangle size={14}/> Critical Stock Feed
-            <Badge className="bg-red-100 text-red-700 ml-auto border-none">LIVE</Badge>
+            <StatusBadge className="bg-red-100 text-red-700 ml-auto border-none">LIVE</StatusBadge>
           </div>
           {alerts.map(alert => (
             <div key={alert.id} className="flex-1 min-w-[200px] p-4 bg-white border border-red-100 rounded-xl flex justify-between items-center gap-3">
@@ -599,9 +599,9 @@ export default function DoctorPharmacy() {
                           </td>
                           <td className="px-4 py-4 text-slate-600">{presc.quantity} units</td>
                           <td className="px-4 py-4">
-                            <Badge className={presc.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700 border-none'}>
+                            <StatusBadge className={presc.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700 border-none'}>
                               {presc.status}
-                            </Badge>
+                            </StatusBadge>
                           </td>
                           <td className="px-4 py-4 text-right">
                             {presc.status === 'Pending' ? (

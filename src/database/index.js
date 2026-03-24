@@ -9,3 +9,4 @@ export * from './roadmapService';
 export * from './domainService';
 export * from './labService';
 export * from './appointmentService';
+export * from './firebaseService';
