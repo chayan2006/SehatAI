@@ -253,7 +253,7 @@ export default function PortalLogin({ onLogin }) {
               </div>
               {/* Image/Illustration Section */}
               <div className="hidden lg:block relative overflow-hidden bg-primary/5">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/80 to-[#0f231f]/90 z-10"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-primary/80 to-background-dark/90 z-10"></div>
                 <img
                   className="absolute h-full w-full object-cover"
                   alt="Healthcare"
