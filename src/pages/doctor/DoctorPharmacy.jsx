@@ -4,6 +4,10 @@ import {
   AlertTriangle, Check, X, ShieldAlert, ArrowRight, TrendingDown, TrendingUp,
   ChevronDown, MessageSquare, Loader2, Package, ClipboardList, FlaskConical, Edit2, PlusCircle, Brain
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
 
 import { Toast, useToast } from '@/components/ui/Toast';
 import { pharmacyService, authService, hospitalService, aiService } from '@/database';

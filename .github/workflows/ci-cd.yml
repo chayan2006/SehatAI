@@ -1,0 +1,37 @@
+name: AI Health Portal CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Validate Environment Variables
+      run: |
+        if [ -z "${{ secrets.VITE_GROQ_API_KEY }}" ]; then
+          echo "WARNING: VITE_GROQ_API_KEY is not set. AI features may fail."
+        fi
+
+    - name: Build
+      run: npm run build
+      env:
+        VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+
+    - name: Lint (Optional)
+      run: npm run lint || true

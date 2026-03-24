@@ -1,0 +1,48 @@
+On branch aditya
+Your branch is ahead of 'origin/main' by 1 commit.
+  (use "git push" to publish your local commits)
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+	new file:   .github/workflows/ci-cd.yml
+	new file:   init_db.sql
+	modified:   package.json
+	new file:   src/components/AIChat.jsx
+	new file:   src/components/patient/BraceletHealthTracker.jsx
+	modified:   src/lib/adminAgent.js
+	new file:   src/lib/database.js
+	new file:   src/lib/emailService.js
+	modified:   src/lib/hospitalAgent.js
+	new file:   src/lib/patientAgent.js
+	new file:   src/lib/vectorStore.js
+	modified:   src/pages/doctor/DoctorPharmacy.jsx
+	new file:   src/pages/patient/PatientSettings.jsx
+	modified:   vite.config.js
+
+Unmerged paths:
+  (use "git add/rm <file>..." as appropriate to mark resolution)
+	both modified:   package-lock.json
+	both modified:   src/App.jsx
+	both modified:   src/main.jsx
+	both modified:   src/pages/AdminDashboard.jsx
+	both modified:   src/pages/PortalLogin.jsx
+	both added:      src/pages/doctor/DoctorDashboard.jsx
+	both modified:   src/pages/doctor/DoctorPatients.jsx
+	both modified:   src/pages/doctor/DoctorTriage.jsx
+	both modified:   src/pages/doctor/DoctorVitals.jsx
+	both modified:   src/pages/patient/PatientAppointments.jsx
+	deleted by us:   src/pages/patient/PatientBookAmbulance.jsx
+	deleted by us:   src/pages/patient/PatientBookingConfirmation.jsx
+	both modified:   src/pages/patient/PatientDashboard.jsx
+	both modified:   src/pages/patient/PatientHistory.jsx
+	both modified:   src/pages/patient/PatientMedications.jsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.git_status.txt
+	src/database/awsConfig.js
+	src/database/dbClient.js
+

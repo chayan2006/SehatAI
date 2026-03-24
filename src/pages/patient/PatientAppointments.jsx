@@ -1,51 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { sendEmailNotification } from '@/lib/emailService';
 import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isAfter, startOfDay, isSameDay, addMonths, isSameMonth } from 'date-fns';
-import { hospitalService, appointmentService } from '@/database';
-import { Loader2, Star, MapPin, Tag, ChevronRight } from 'lucide-react';
 
+const FACILITIES = [
+    {
+        id: 1,
+        name: "Saint Mary's Specialist Hospital",
+        image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80",
+        rating: 4.9,
+        distance: "2.4 miles away",
+        location: "Marylebone",
+        tags: ["Cardiology", "Neurology", "24/7 ER"],
+        price: 120
+    },
+    {
+        id: 2,
+        name: "Central City Medical Clinic",
+        image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&q=80",
+        rating: 4.5,
+        distance: "0.8 miles away",
+        location: "Soho Square",
+        tags: ["General Physician", "Diagnostics"],
+        price: 45
+    },
+    {
+        id: 3,
+        name: "Regents Health & Research Center",
+        image: "https://images.unsplash.com/photo-1538108149393-cebb47acdd4e?w=600&q=80",
+        rating: 4.7,
+        distance: "3.1 miles away",
+        location: "Camden",
+        tags: ["Orthopedic", "Pediatric"],
+        price: 95
+    }
+];
 
-export default function PatientAppointments({ user, addToast, onNavigate }) {
-    const [facilities, setFacilities] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [bookingId, setBookingId] = useState(null); // Track which facility is being booked
+export default function PatientAppointments({ onNavigate }) {
     const today = startOfDay(new Date());
     const [baseDate, setBaseDate] = useState(today);
     const [selectedDate, setSelectedDate] = useState(today);
     const [selectedSlot, setSelectedSlot] = useState('11:00 AM');
-    const [selectedFacilityId, setSelectedFacilityId] = useState(null);
+    const [selectedFacilityId, setSelectedFacilityId] = useState(1);
     const [specialty, setSpecialty] = useState('');
     const [distance, setDistance] = useState('');
     const [rating, setRating] = useState('');
 
-    useEffect(() => {
-        const fetchFacilities = async () => {
-            try {
-                const data = await hospitalService.getAllHospitals();
-                // Map database hospitals to UI format if needed, or use directly
-                const mapped = data.map(h => ({
-                    id: h.id,
-                    name: h.hospital_name,
-                    image: h.logo_url || `https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&q=80`,
-                    rating: h.rating || 0.0, 
-                    distance: h.address ? `${(1 + Math.random() * 4).toFixed(1)} miles away` : "Distance unknown",
-                    location: h.address || "Local Area",
-                    tags: h.specialties && h.specialties.length > 0 ? h.specialties : ["General Care"],
-                    price: h.consultation_fee || 0
-                }));
-                setFacilities(mapped);
-                if (mapped.length > 0) setSelectedFacilityId(mapped[0].id);
-            } catch (err) {
-                console.error('Failed to fetch hospitals:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchFacilities();
-    }, []);
+    const allTags = Array.from(new Set(FACILITIES.flatMap(f => f.tags)));
 
-    const allTags = Array.from(new Set(facilities.flatMap(f => f.tags)));
-
-    const filteredFacilities = facilities.filter(fac => {
+    const filteredFacilities = FACILITIES.filter(fac => {
         if (specialty && !fac.tags.includes(specialty)) return false;
         if (distance) {
             const facDist = parseFloat(fac.distance);
@@ -180,7 +182,7 @@ export default function PatientAppointments({ user, addToast, onNavigate }) {
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                         <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-6 flex flex-col">
                             Available Slots
-                            <span className="text-xs font-medium text-primary mt-1 w-full truncate">{facilities.find(f => f.id === selectedFacilityId)?.name || ''}</span>
+                            <span className="text-xs font-medium text-primary mt-1 w-full truncate">{FACILITIES.find(f => f.id === selectedFacilityId)?.name || ''}</span>
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
                             {slots.length > 0 ? slots.map((slot, i) => {
@@ -260,51 +262,35 @@ export default function PatientAppointments({ user, addToast, onNavigate }) {
                                     </div>
                                     
                                     {/* Bottom Row */}
-                                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100 dark:border-slate-800/50">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Consultation</span>
-                                            <div className="text-lg font-black text-slate-900 dark:text-white">
-                                                ₹{fac.price} <span className="text-xs font-medium text-slate-400">/ session</span>
-                                            </div>
+                                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                        <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                            Consultation from <span className="font-extrabold text-slate-900 dark:text-white ml-0.5">${fac.price}</span>
                                         </div>
                                         <button 
-                                            disabled={bookingId !== null}
-                                            onClick={async (e) => { 
-                                                e.stopPropagation(); 
-                                                setBookingId(fac.id);
-                                                try {
-                                                    const appointmentTime = new Date(selectedDate);
-                                                    const [hours, minutes] = selectedSlot.split(/[:\s]/);
-                                                    let h = parseInt(hours);
-                                                    if (selectedSlot.includes('PM') && h !== 12) h += 12;
-                                                    appointmentTime.setHours(h, parseInt(minutes));
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              const newApt = {
+                                                facility: fac,
+                                                date: selectedDate,
+                                                slot: selectedSlot
+                                              };
+                                              const existing = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
+                                              localStorage.setItem('sehat_appointments', JSON.stringify([...existing, newApt]));
+                                              
+                                              // Send Email
+                                              sendEmailNotification({
+                                                  type: "appointment",
+                                                  email: "patient@example.com",
+                                                  facility: fac.name,
+                                                  date: selectedDate,
+                                                  time: selectedSlot
+                                              });
 
-                                                    await appointmentService.createAppointment({
-                                                        patient_id: user.id,
-                                                        hospital_id: fac.id,
-                                                        appointment_time: appointmentTime.toISOString(),
-                                                        reason: 'Online Booking',
-                                                        status: 'scheduled'
-                                                    });
-                                                    
-                                                    addToast('Appointment booked successfully!', 'success');
-                                                } catch (err) {
-                                                    console.error('Booking failed:', err);
-                                                    addToast('Booking failed. Please try again.', 'error');
-                                                } finally {
-                                                    setBookingId(null);
-                                                }
+                                              onNavigate?.('confirmation'); 
                                             }}
-                                            className="group relative flex items-center justify-center gap-2 bg-[#00b289] hover:bg-[#00d0a1] disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white font-black text-xs uppercase tracking-widest px-8 py-3.5 rounded-xl shadow-lg shadow-[#00b289]/20 transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer overflow-hidden"
+                                            className="bg-primary hover:bg-primary/90 text-white font-bold text-sm px-6 py-2.5 rounded-lg shadow-sm shadow-primary/20 transition-colors cursor-pointer"
                                         >
-                                            {bookingId === fac.id ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <>
-                                                    Book Now
-                                                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                                </>
-                                            )}
+                                            Book Now
                                         </button>
                                     </div>
                                 </div>

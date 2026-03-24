@@ -1,432 +1,129 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, Activity, BedDouble, Pill, PlusSquare, 
-  AlertTriangle, CheckCircle2, Clock, Loader2, TrendingUp,
-  Calendar, ArrowUpRight, ArrowDownRight, UserPlus, Database
-} from 'lucide-react';
-import { supabase } from '@/database/supabaseClient';
-import { authService, patientService, hospitalService } from '@/database';
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader,
-  DialogTitle, DialogTrigger, DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Toast, useToast } from '@/components/ui/Toast';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { DoctorSidebar } from '@/components/DoctorSidebar';
+import { initHospitalAgent } from '@/lib/hospitalAgent';
+import AIChat from '@/components/AIChat';
 
-export default function DoctorDashboard({ user }) {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalPatients: 0,
-    availableBeds: 0,
-    wardOccupancy: 0,
-    lowStockMeds: 0,
-    todayAppointments: 0,
-    activeEscalations: 0
-  });
-  const [recentPatients, setRecentPatients] = useState([]);
-  const [activeEscalations, setActiveEscalations] = useState([]);
-  
-  // New Admission states
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newAge, setNewAge] = useState('');
-  const [newCondition, setNewCondition] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [lastError, setLastError] = useState(null);
-  const { toasts, addToast, removeToast } = useToast();
+// Doctor Pages
+import DoctorTriage from './DoctorTriage';
+import DoctorPatients from './DoctorPatients';
+import DoctorStaff from './DoctorStaff';
+import DoctorConsultations from './DoctorConsultations';
+import DoctorAmbulance from './DoctorAmbulance';
+import DoctorVitals from './DoctorVitals';
+import DoctorPharmacy from './DoctorPharmacy';
+import DoctorWard from './DoctorWard';
+import DoctorBilling from './DoctorBilling';
+import Settings from '../Settings';
+import AgentLogs from '../AgentLogs';
+
+import { db } from '@/lib/database';
+
+export default function DoctorDashboard({ onLogout }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [agentExecutor, setAgentExecutor] = useState(null);
+  const [stats, setStats] = useState({ totalPatients: 0, activeEmergencies: 0, occupancy: '0%' });
+
+  // Extract current tab from URL
+  const activeTab = location.pathname.split('/').pop() || 'dashboard';
 
   useEffect(() => {
-    loadDashboardData();
+    const setupAgent = async () => {
+      try {
+        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+        if (apiKey) {
+          const executor = await initHospitalAgent({ apiKey });
+          setAgentExecutor(executor);
+        }
+      } catch (error) {
+        console.error("Failed to initialize Doctor AI:", error);
+      }
+    };
+
+    const fetchStats = async () => {
+      try {
+        const s = await db.getStats();
+        setStats({
+          totalPatients: s.totalPatients,
+          activeEmergencies: s.activeEmergencies,
+          occupancy: '88%' // Placeholder for real occupancy logic if needed
+        });
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+      }
+    };
+
+    setupAgent();
+    fetchStats();
   }, []);
 
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      const currentUser = await authService.getCurrentUser();
-      if (!currentUser) return;
-
-      const hospital = await hospitalService.getMyHospital();
-      if (!hospital) {
-        setStats(prev => ({ ...prev, totalPatients: 0 }));
-        setRecentPatients([]);
-        setLoading(false);
-        return;
-      }
-
-      const [patients, wards, inventory, appointments, escalations] = await Promise.all([
-        patientService.getPatients(hospital.id),
-        hospitalService.getWards(hospital.id),
-        hospitalService.getInventory(hospital.id),
-        hospitalService.getAppointments(hospital.id),
-        hospitalService.getEscalations(hospital.id)
-      ]);
-
-      const allBeds = (wards || []).flatMap(w => w.beds || []);
-      const totalBeds = allBeds.length;
-      const occupiedBeds = allBeds.filter(b => b.status === 'occupied').length;
-
-      setStats({
-        totalPatients: patients?.length || 0,
-        availableBeds: totalBeds - occupiedBeds,
-        wardOccupancy: totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0,
-        lowStockMeds: (inventory || []).filter(i => i.stock_level < i.min_stock).length,
-        todayAppointments: (appointments || []).filter(a => {
-            const date = new Date(a.appointment_time);
-            return date.toDateString() === new Date().toDateString();
-        }).length,
-        activeEscalations: (escalations || []).filter(e => !e.resolved).length
-      });
-
-      setRecentPatients((patients || []).slice(0, 5));
-      setActiveEscalations((escalations || []).filter(e => !e.resolved).slice(0, 4));
-
-    } catch (err) {
-      console.error('Failed to load dashboard data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddPatient = async (e) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    setSaving(true);
-    setLastError(null);
-    const lid = addToast('Admitting patient to registry...', 'loading', 3000);
-
-    try {
-      const hospital = await hospitalService.getMyHospital();
-      if (!hospital || !hospital.id) throw new Error('Hospital ID is missing. Please run the Auto-Fix DB tool.');
-
-      const { data, error } = await supabase
-        .from('patients')
-        .insert([{
-          hospital_id: hospital.id,
-          full_name: newName,
-          age: parseInt(newAge) || null,
-          condition: newCondition,
-          status: 'Stable',
-          risk_score: 25
-        }])
-        .select();
-        
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        removeToast(lid);
-        throw new Error('Patient admitted but could not be retrieved. This is likely an RLS (Row Level Security) issue. Please use the "Auto-Fix DB" tool or run the SQL repair script.');
-      }
-
-      removeToast(lid);
-      addToast(`✓ Patient "${newName}" admitted successfully!`, 'success');
-      setIsDialogOpen(false);
-      setNewName(''); setNewAge(''); setNewCondition('');
-      loadDashboardData(); 
-    } catch (err) {
-      console.error('Failed to add patient:', err);
-      setLastError(err.message || JSON.stringify(err));
-      addToast('Failed to admit patient', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const repairDatabase = async () => {
-    setSaving(true);
-    addToast('Attempting automated database repair...', 'loading');
-    try {
-      // Step 1: Add the helper RPC if possible (requires high permission but we try)
-      // If we can't do it via RPC, we'll give the SQL to the user very clearly.
-      const sqlToRun = `-- ⚡ ULTIMATE SEHAT AI DATABASE REPAIR SCRIPT ⚡
--- Run this in your Supabase SQL Editor to fix ALL submission/permission issues.
-
--- 1. FIX: Support Rapid Patient Admission & Missing Columns
-ALTER TABLE public.patients ALTER COLUMN id SET DEFAULT gen_random_uuid();
-ALTER TABLE public.patients DROP CONSTRAINT IF EXISTS patients_id_fkey;
-
--- Add missing columns
-ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS age INTEGER;
-ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS condition TEXT;
-ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Stable';
-ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS risk_score INTEGER DEFAULT 0;
-
--- Infrastructure Fix
-ALTER TABLE public.wards ADD COLUMN IF NOT EXISTS type TEXT;
-ALTER TABLE public.pharmacy_inventory ADD COLUMN IF NOT EXISTS expiry_date TEXT;
-ALTER TABLE public.billing_records ADD COLUMN IF NOT EXISTS services TEXT;
-ALTER TABLE public.billing_records ADD COLUMN IF NOT EXISTS provider TEXT;
-
--- 2. FIX: Deduplicate Hospitals & Force-Claim Orphan Data
--- This targets the "NO CANDIDATES" issue directly
-DO $$
-DECLARE
-    keep_id UUID;
-    hospital_row RECORD;
-BEGIN
-    -- Loop through every admin and find their primary hospital
-    FOR hospital_row IN SELECT DISTINCT admin_id FROM public.hospitals WHERE admin_id IS NOT NULL LOOP
-        SELECT id INTO keep_id FROM public.hospitals WHERE admin_id = hospital_row.admin_id ORDER BY created_at DESC LIMIT 1;
-        
-        -- FORCE CLAIM: Any patient without a clinic belongs to the newest clinic
-        UPDATE public.patients 
-        SET hospital_id = keep_id 
-        WHERE hospital_id IS NULL;
-        
-        -- Delete duplicates
-        DELETE FROM public.hospitals WHERE admin_id = hospital_row.admin_id AND id != keep_id;
-    END LOOP;
-END $$;
-
--- 3. FIX: Permissions (Grant Global Access)
-DO $$
-DECLARE t TEXT;
-BEGIN
-    FOR t IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public') LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-        EXECUTE format('DROP POLICY IF EXISTS "Global Demo Access" ON public.%I', t);
-        EXECUTE format('CREATE POLICY "Global Demo Access" ON public.%I FOR ALL USING (true) WITH CHECK (true)', t);
-    END LOOP;
-END $$;
-      `;
-
-      setLastError(`SUCCESS: Copy this code and run it in Supabase SQL Editor:\n\n${sqlToRun}`);
-      addToast('Repair script generated! Copy it from the red box.', 'info');
-
-    } catch (err) {
-      console.error('Repair failed:', err);
-      setLastError('Automatic repair blocked. Please run the SQL script in the Walkthrough inside your Supabase SQL Editor.');
-      addToast('Repair failed', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400">
-        <Loader2 className="h-12 w-12 animate-spin mb-4 text-[#00b289]" />
-        <p className="font-bold text-lg tracking-tight">Syncing Clinical Ecosystem...</p>
-      </div>
-    );
-  }
-
-  const cards = [
-    { label: 'Total Patients', value: stats.totalPatients, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', trend: '+12%', up: true },
-    { label: 'Bed Availability', value: stats.availableBeds, icon: BedDouble, color: 'text-[#00b289]', bg: 'bg-emerald-50', trend: '-2', up: false },
-    { label: 'Ward Occupancy', value: `${stats.wardOccupancy}%`, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50', trend: 'Optimal', up: true },
-    { label: 'Low Stock Meds', value: stats.lowStockMeds, icon: Pill, color: 'text-red-600', bg: 'bg-red-50', trend: 'Restock Soon', up: false },
-  ];
-
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      <Toast toasts={toasts} removeToast={removeToast} />
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-            Operational Overview
-          </h2>
-          <p className="text-slate-500 mt-1 uppercase text-[10px] font-black tracking-widest">
-            Welcome back, {user?.user_metadata?.full_name || 'Medical Officer'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-[#00b289] text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:shadow-lg transition-all active:scale-95">
-                        <UserPlus size={14} />
-                        New Admission
-                    </button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Rapid Patient Admission</DialogTitle>
-                        <DialogDescription>Register a new patient into the clinical ecosystem.</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleAddPatient}>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="name" className="text-right text-slate-700 font-bold text-xs uppercase">Full Name</Label>
-                                <Input id="name" value={newName} onChange={e => setNewName(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. Eleanor Vance" required />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="age" className="text-right text-slate-700 font-bold text-xs uppercase">Age</Label>
-                                <Input id="age" type="number" value={newAge} onChange={e => setNewAge(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. 78" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="condition" className="text-right text-slate-700 font-bold text-xs uppercase">Condition</Label>
-                                <Input id="condition" value={newCondition} onChange={e => setNewCondition(e.target.value)} className="col-span-3 border-slate-200" placeholder="e.g. Arrhythmia" />
-                            </div>
-                        </div>
-                        {lastError && (
-                            <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-[10px] text-red-600 font-mono break-all">
-                                <p className="font-bold uppercase mb-1">Database Error:</p>
-                                {lastError}
-                            </div>
-                        )}
-                        <DialogFooter className="flex-col sm:flex-row gap-2 border-t border-slate-100 pt-4 mt-2">
-                            {lastError && (
-                                <Button type="button" variant="ghost" onClick={repairDatabase} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl font-bold uppercase text-[9px] tracking-widest px-3 py-4 border border-amber-100 animate-pulse">
-                                    <Database className="w-4 h-4 mr-1" /> Get Auto-Fix SQL
-                                </Button>
-                            )}
-                            <div className="flex gap-2 w-full sm:w-auto ml-auto">
-                                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancel</Button>
-                                <Button type="submit" disabled={saving} className="bg-[#00b289] hover:bg-[#00b289]/90 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest min-w-[120px]">
-                                    {saving ? 'Processing...' : 'Complete Admission'}
-                                </Button>
-                            </div>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-50 transition-all">
-                <Calendar size={14} />
-                Schedules
-            </button>
-        </div>
-      </div>
-
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {cards.map((card, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-2xl ${card.bg} ${card.color}`}>
-                <card.icon size={24} />
-              </div>
-              <div className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-tighter ${card.up ? 'text-emerald-600' : 'text-red-600'}`}>
-                {card.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {card.trend}
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{card.label}</p>
-              <h3 className="text-3xl font-black text-slate-900">{card.value}</h3>
-            </div>
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+      <DoctorSidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/doctor/${tab}`)} />
+      
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white capitalize">{activeTab.replace('-', ' ')}</h2>
+          <div className="flex items-center gap-4">
+             <button 
+                onClick={onLogout}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+             >
+                Logout
+             </button>
           </div>
-        ))}
-      </div>
+        </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Active Escalations */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-               <span className="p-1.5 bg-red-50 text-red-600 rounded-lg"><AlertTriangle size={14} /></span>
-               AI Alerts
-            </h3>
-            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-black">
-                {stats.activeEscalations} ACTIVE
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {activeEscalations.map((esc, i) => (
-              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-red-200 transition-all">
-                <div className="flex justify-between items-start mb-2">
-                   <p className="text-[10px] font-black text-red-600 uppercase tracking-tighter px-2 py-0.5 bg-red-50 rounded-lg">
-                     {esc.severity}
-                   </p>
-                   <span className="text-[9px] text-slate-400 font-bold">{new Date(esc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-                <p className="text-sm font-bold text-slate-800 mb-1">{esc.risk}</p>
-                <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest mt-3">
-                   <Clock size={10} />
-                   Awaiting Intervention
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <Routes>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={
+              <div className="p-8">
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-6">Doctor Overview</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-sm font-medium text-slate-500 mb-2">Patients Today</h3>
+                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.totalPatients}</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-sm font-medium text-slate-500 mb-2">Active Emergencies</h3>
+                    <p className={`text-3xl font-bold ${stats.activeEmergencies > 0 ? 'text-red-600' : 'text-[#00b289]'}`}>
+                      {stats.activeEmergencies}
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-sm font-medium text-slate-500 mb-2">Ward Occupancy</h3>
+                    <p className="text-3xl font-bold text-[#00b289]">{stats.occupancy}</p>
+                  </div>
                 </div>
               </div>
-            ))}
-            {activeEscalations.length === 0 && (
-                <div className="py-12 bg-white rounded-2xl border border-dashed border-slate-200 flex flex-col items-center text-center px-6">
-                    <CheckCircle2 size={32} className="text-[#00b289] mb-3" />
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest">System Stable</p>
-                    <p className="text-[10px] text-slate-400 mt-1">No active clinical escalations detected at this time.</p>
-                </div>
-            )}
-          </div>
+            } />
+            <Route path="triage" element={<DoctorTriage />} />
+            <Route path="emergency" element={<DoctorTriage />} />
+            <Route path="pharmacy" element={<DoctorPharmacy />} />
+            <Route path="patients" element={<DoctorPatients />} />
+            <Route path="staff" element={<DoctorStaff />} />
+            <Route path="vitals" element={<DoctorVitals />} />
+            <Route path="consultations" element={<DoctorConsultations />} />
+            <Route path="ambulance" element={<DoctorAmbulance />} />
+            <Route path="ward" element={<DoctorWard />} />
+            <Route path="billing" element={<DoctorBilling />} />
+            <Route path="analytics" element={<AgentLogs />} />
+            <Route path="settings" element={<Settings />} />
+          </Routes>
         </div>
 
-        {/* Live Patient Pulse / Insights */}
-        <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between px-2">
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                    <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Activity size={14} /></span>
-                    Recent Census Activity
-                </h3>
-                <button className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest">
-                    View Registry
-                </button>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-slate-50/50">
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Admission</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {recentPatients.map((p, i) => (
-                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xs uppercase">
-                                                {p.full_name?.split(' ').map(n=>n[0]).join('')}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-900">{p.full_name}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold">ID: {p.external_id || 'PX-XXXX'}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[9px] font-black uppercase">
-                                            Stable
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-[10px] font-black text-slate-500">{new Date(p.admission_date || p.created_at).toLocaleDateString()}</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-1 px-3 bg-slate-100 hover:bg-[#00b289] hover:text-white text-slate-600 text-[10px] font-black rounded-lg transition-all uppercase tracking-tighter">
-                                            Review
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                {recentPatients.length === 0 && (
-                    <div className="py-20 text-center text-slate-400 font-bold text-xs uppercase tracking-widest italic">
-                        No recent patient activity found.
-                    </div>
-                )}
-            </div>
-            
-            <div className="p-6 bg-[#1a1a1a] rounded-3xl text-white flex items-center justify-between gap-6 shadow-xl">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white/10 rounded-2xl">
-                        <TrendingUp className="text-[#00b289]" size={24} />
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">AI Productivity Pulse</p>
-                        <h4 className="text-lg font-black tracking-tight">System throughput increased by 14% today</h4>
-                    </div>
-                </div>
-                <button className="px-6 py-2 bg-white text-black rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-100 transition-all">
-                    View Report
-                </button>
-            </div>
-        </div>
-      </div>
+        {agentExecutor && (
+          <AIChat 
+            agentExecutor={agentExecutor} 
+            title="SehatAI Clinical Assistant"
+            initialMessage="Hello Dr. Miller. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information."
+            welcomeTitle="Clinical Agentic Suite"
+            themeColor="#00b289"
+          />
+        )}
+      </main>
     </div>
   );
 }

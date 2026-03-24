@@ -1,100 +1,111 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { authService } from '@/database';
-import { useToast } from '@/components/ui/Toast';
-import { AuthenticatedApp } from '@/components/AuthenticatedApp';
-import { UnauthenticatedApp } from '@/components/UnauthenticatedApp';
-import { useApp } from '@/context/AppContext';
-import { BrandOverlay } from '@/components/BrandLoader';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import Login from '@/pages/Login';
+import PortalLogin from '@/pages/PortalLogin';
+import AdminLogin from '@/pages/AdminLogin';
+
+// Dashboards
+import AdminDashboard from '@/pages/AdminDashboard';
+import DoctorDashboard from '@/pages/doctor/DoctorDashboard';
+import PatientDashboard from '@/pages/patient/PatientDashboard';
 
 export default function App() {
-  const { user, role, loading: appLoading, setRole, setUser } = useApp();
-  const [authStep, setAuthStep] = useState('gateway'); // 'gateway' | 'admin_login' | 'portal_login'
-  const [loginRole, setLoginRole] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [role, setRole] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [adminTab, setAdminTab] = useState('dashboard');
-  const [patientTab, setPatientTab] = useState('dashboard');
-  const [doctorTab, setDoctorTab] = useState('dashboard');
-  const { toasts, addToast, removeToast } = useToast();
-
-  const isAuthenticated = !!user;
-
-  // Auto-logout Logic
-  const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes (Elite Standard)
-  const timerRef = useRef(null);
-
-  const resetTimer = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      console.log('Auto-logout due to inactivity');
-      await authService.signOut();
-    }, INACTIVITY_LIMIT);
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setRole(null);
+    navigate('/');
   };
 
+  // Protect routes and handle role-based redirection
   useEffect(() => {
-    if (isAuthenticated) {
-      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-      const handleActivity = () => resetTimer();
-      
-      events.forEach(event => window.addEventListener(event, handleActivity));
-      resetTimer(); // Start timer
-
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'sehat_ai_logout') {
-          console.log('Detected logout from another tab');
-          setUser(null);
-          setRole(null);
-        }
-      });
-
-      return () => {
-        events.forEach(event => window.removeEventListener(event, handleActivity));
-        if (timerRef.current) clearTimeout(timerRef.current);
-      };
+    if (isAuthenticated && role) {
+      if (location.pathname === '/' || location.pathname === '/login' || location.pathname.startsWith('/portal')) {
+        navigate(`/${role}/dashboard`);
+      }
     }
-  }, [isAuthenticated]);
-
-  if (appLoading) {
-    return <BrandOverlay message="Initializing SehatAI Secure Gateway" />;
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <UnauthenticatedApp 
-        authStep={authStep}
-        setAuthStep={setAuthStep}
-        setRole={setRole}
-        loginRole={loginRole}
-        setLoginRole={setLoginRole}
-      />
-    );
-  }
-
-  if (isAuthenticated && role) {
-    return (
-      <AuthenticatedApp 
-        user={user}
-        role={role}
-        adminTab={adminTab}
-        setAdminTab={setAdminTab}
-        patientTab={patientTab}
-        setPatientTab={setPatientTab}
-        doctorTab={doctorTab}
-        setDoctorTab={setDoctorTab}
-        toasts={toasts}
-        addToast={addToast}
-        removeToast={removeToast}
-        onRoleChange={setRole}
-        onLogout={async () => {
-          localStorage.setItem('sehat_ai_logout', Date.now());
-          await authService.signOut();
-        }}
-      />
-    );
-  }
+  }, [isAuthenticated, role, location.pathname, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-light">
-      <div className="size-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-    </div>
+    <Routes>
+      <Route 
+        path="/" 
+        element={
+          <Login onLogin={(selectedRole) => {
+            if (selectedRole === 'admin') {
+              navigate('/admin/login');
+            } else {
+              navigate(`/portal/${selectedRole}`);
+            }
+          }} />
+        } 
+      />
+      
+      <Route 
+        path="/portal/:loginRole" 
+        element={
+          <PortalLogin onLogin={(selectedRole) => {
+            if (selectedRole === 'gateway_back') {
+              navigate('/');
+            } else if (selectedRole === 'admin') {
+              navigate('/admin/login');
+            } else {
+              setRole(selectedRole);
+              setIsAuthenticated(true);
+              navigate(`/${selectedRole}/dashboard`);
+            }
+          }} />
+        } 
+      />
+
+      <Route 
+        path="/admin/login" 
+        element={
+          <AdminLogin 
+            onConfirm={() => {
+              setRole('admin');
+              setIsAuthenticated(true);
+              navigate('/admin/dashboard');
+            }} 
+            onBack={() => navigate('/')} 
+          />
+        } 
+      />
+
+      {/* Role-Based Protected Dashboards */}
+      <Route 
+        path="/admin/*" 
+        element={
+          isAuthenticated && role === 'admin' 
+            ? <AdminDashboard role={role} onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
+      
+      <Route 
+        path="/doctor/*" 
+        element={
+          isAuthenticated && role === 'doctor' 
+            ? <DoctorDashboard onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
+      
+      <Route 
+        path="/patient/*" 
+        element={
+          isAuthenticated && role === 'patient' 
+            ? <PatientDashboard onLogout={handleLogout} /> 
+            : <Navigate to="/" replace />
+        } 
+      />
+
+      {/* Catch-all for undefined routes */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

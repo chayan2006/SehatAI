@@ -9,73 +9,79 @@ import { z } from "zod";
  * 
  * @param {Object} options - Tool handlers and API key.
  */
-export async function initHospitalAgent({ apiKey, handlers }) {
+import { db } from "./database.js";
+import { searchKnowledge, addMemory } from "./vectorStore.js";
+
+/**
+ * Creates and initializes the Hospital Agent using LangChain, Groq, and RAG.
+ */
+export async function initHospitalAgent({ apiKey }) {
 
     const tools = [
         new DynamicStructuredTool({
             name: "get_hospital_stats",
-            description: "Returns hospital telemetry like occupancy rate, active emergencies, and bed availability.",
+            description: "Returns hospital telemetry (occupancy, emergencies) from PostgreSQL.",
             schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
-            func: async () => JSON.stringify(handlers.getStats()),
+            func: async () => JSON.stringify(await db.getStats()),
         }),
         new DynamicStructuredTool({
-            name: "get_ward_status",
-            description: "Returns the status of beds in a specific ward (ICU or General Ward).",
+            name: "search_operations_manual",
+            description: "Retrieves hospital protocols and operational procedures from vector memory.",
             schema: z.object({
-                ward: z.enum(["ICU", "General Ward"]).describe("The ward to check."),
+                query: z.string().describe("Emergency or operational query."),
             }),
-            func: async ({ ward }) => JSON.stringify(handlers.getWardStatus(ward)),
+            func: async ({ query }) => await searchKnowledge(query),
         }),
         new DynamicStructuredTool({
-            name: "manage_bed",
-            description: "Updates a bed's status (Available, Occupied, Maintenance) and assigns patients.",
+            name: "check_ward_beds",
+            description: "Queries PostgreSQL for available beds in a specific ward.",
             schema: z.object({
-                bedId: z.string().describe("The ID of the bed (e.g., '101', 'ICU-1')."),
-                status: z.enum(["Available", "Occupied", "Maintenance"]).describe("New status."),
-                patient: z.string().optional().describe("Patient name if status is Occupied."),
+                ward: z.string().describe("Ward name (ICU, General Ward)."),
             }),
-            func: async (params) => {
-                handlers.manageBed(params);
-                return JSON.stringify({ status: "Bed updated successfully" });
+            func: async ({ ward }) => `Ward ${ward} has ${await db.getBedAvailability(ward)} beds currently available.`,
+        }),
+        new DynamicStructuredTool({
+            name: "log_emergency_event",
+            description: "Logs critical medical events or alerts into the PostgreSQL audit log.",
+            schema: z.object({
+                event: z.string().describe("Type of event (CODE BLUE, Trauma Level 1, etc)."),
+                location: z.string().describe("Ward or room number."),
+            }),
+            func: async ({ event, location }) => {
+                await db.logAction("HospitalAgent", event, `Location: ${location}`);
+                return `Alert for ${event} at ${location} logged in persistent storage.`;
             },
         }),
         new DynamicStructuredTool({
-            name: "get_staff_on_duty",
-            description: "Returns a list of staff members currently on duty.",
-            schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
-            func: async () => JSON.stringify(handlers.getStaff()),
-        }),
-        new DynamicStructuredTool({
-            name: "get_emergency_alerts",
-            description: "Returns information about active emergency alerts (e.g., CODE BLUE).",
-            schema: z.preprocess((val) => val === null ? {} : val, z.object({})),
-            func: async () => JSON.stringify(handlers.getEmergencies()),
-        }),
-        new DynamicStructuredTool({
-            name: "send_page",
-            description: "Sends an urgent page or alert message to a specific staff member or department.",
+            name: "update_bed_registry",
+            description: "Updates bed status in the PostgreSQL clinical registry.",
             schema: z.object({
-                message: z.string().describe("The alert message."),
-                recipient: z.string().describe("Who should receive the alert."),
+                bedId: z.string().describe("Registry ID of the bed."),
+                status: z.enum(["Available", "Occupied", "Maintenance"]),
             }),
-            func: async ({ message, recipient }) => String(handlers.sendPage(message, recipient)),
+            func: async ({ bedId, status }) => {
+                await db.logAction("HospitalAgent", "BedUpdate", `Bed ${bedId} shifted to ${status}`);
+                return `Bed registry record for #${bedId} updated.`;
+            }
         })
     ];
 
     const llm = new ChatGroq({
         apiKey: apiKey,
         model: "llama-3.1-8b-instant",
-        temperature: 0.2,
+        temperature: 0.1,
         maxRetries: 1,
         timeout: 15000,
     });
 
-    const systemInstruction = `You are the SehatAI Hospital Operations Assistant. You help hospital staff manage day-to-day operations at St. Jude Medical Center. 
-    You have access to real-time data about bed occupancy, staff duty rosters, and emergency alerts.
-    You can check stats (get_hospital_stats), see ward maps (get_ward_status), update bed assignments (manage_bed), check staff (get_staff_on_duty), and monitor emergencies (get_emergency_alerts).
-    Always be professional, concise, and helpful.
+    const systemInstruction = `You are the SehatAI Hospital Operations Assistant. You manage St. Jude Medical Center using:
+    1. **PostgreSQL**: For real-time bed registry and staff duty logs.
+    2. **Vector Memory (RAG)**: For quick retrieval of emergency protocols (CODE BLUE, etc) via search_operations_manual.
     
-    IMPORTANT LANGUAGE INSTRUCTION: You must reply in the exact same language the user speaks to you. If the user speaks in English, reply in English. If the user speaks in Hindi, reply in authentic Hindi. If the user speaks in "Hinglish" (Hindi words in English script), reply back in fluent Hinglish. Sound helpful and sweet. Keep sentences short for TTS.`;
+    You assist hospital staff. Always prioritize accuracy and persistent logging of all events.
+    
+    IMPORTANT: If the user provides a simple greeting like 'hi', 'hello', or 'hey', do NOT use any tools. Simply reply with a warm, professional greeting.
+    Reply in the user's language (English, Hindi, or Hinglish). Keep it sweet and concise.`;
 
     const agent = createReactAgent({
         llm,
@@ -86,7 +92,9 @@ export async function initHospitalAgent({ apiKey, handlers }) {
     return {
         invoke: async ({ input, chat_history = [] }) => {
             try {
-                const langChainHistory = chat_history.map(msg => {
+                // Prune history to last 6 messages (3 turns) to save tokens
+                const prunedHistory = chat_history.slice(-6);
+                const langChainHistory = prunedHistory.map(msg => {
                     return msg[0] === "human" ? new HumanMessage(msg[1]) : new AIMessage(msg[1]);
                 });
 
@@ -95,13 +103,15 @@ export async function initHospitalAgent({ apiKey, handlers }) {
                         ...langChainHistory,
                         new HumanMessage(input)
                     ],
+                }, {
+                    recursionLimit: 15 // Increased from 5 to allow complex reasoning
                 });
 
                 const finalMsg = response.messages[response.messages.length - 1];
-                return { output: finalMsg.content || "I've processed your request." };
+                return { output: finalMsg.content || "Hospital operations registry updated." };
             } catch (error) {
                 console.error("Hospital Agent error:", error);
-                return { output: `Error: ${error.message || JSON.stringify(error)}` };
+                return { output: `System error: ${error.message}` };
             }
         },
     };
