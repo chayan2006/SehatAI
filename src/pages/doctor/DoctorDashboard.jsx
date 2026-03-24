@@ -18,10 +18,13 @@ import Settings from '../Settings';
 import AgentLogs from '../AgentLogs';
 
 import { db } from '@/lib/database';
+import { useAuth } from '@/contexts/AuthContext';
+import { admin as adminApi } from '@/lib/api';
 
 export default function DoctorDashboard({ onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [stats, setStats] = useState({ totalPatients: 0, activeEmergencies: 0, occupancy: '0%' });
 
@@ -43,14 +46,15 @@ export default function DoctorDashboard({ onLogout }) {
 
     const fetchStats = async () => {
       try {
-        const s = await db.getStats();
+        // Try real API first, fall back to local db mock
+        const s = await adminApi.getStats().catch(() => db.getStats());
         setStats({
           totalPatients: s.totalPatients,
           activeEmergencies: s.activeEmergencies,
-          occupancy: '88%' // Placeholder for real occupancy logic if needed
+          occupancy: s.availableBeds != null ? `${Math.round((1 - s.availableBeds / 200) * 100)}%` : '88%'
         });
       } catch (err) {
-        console.error("Failed to fetch dashboard stats:", err);
+        console.error('Failed to fetch dashboard stats:', err);
       }
     };
 
@@ -66,6 +70,7 @@ export default function DoctorDashboard({ onLogout }) {
         <header className="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white capitalize">{activeTab.replace('-', ' ')}</h2>
           <div className="flex items-center gap-4">
+             <span className="text-sm font-semibold text-slate-600 dark:text-slate-300 hidden sm:block">{user?.full_name || 'Doctor'}</span>
              <button 
                 onClick={onLogout}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -118,7 +123,7 @@ export default function DoctorDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Clinical Assistant"
-            initialMessage="Hello Dr. Miller. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information."
+            initialMessage={`Hello ${user?.full_name ? `Dr. ${user.full_name.split(' ').pop()}` : 'Doctor'}. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information.`}
             welcomeTitle="Clinical Agentic Suite"
             themeColor="#00b289"
           />

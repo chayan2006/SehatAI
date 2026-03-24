@@ -20,10 +20,9 @@ export default defineConfig(({ mode }) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
-        '/api/nvidia': {
-          target: 'https://integrate.api.nvidia.com',
+        '/api': {
+          target: 'http://localhost:3001',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/nvidia/, '')
         }
       }
     },

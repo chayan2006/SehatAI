@@ -11,19 +11,23 @@ import PatientSettings from './PatientSettings';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
-
 import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
 import { sendEmailNotification } from '@/lib/emailService';
+import { useAuth } from '@/contexts/AuthContext';
+import { notifications as notifApi } from '@/lib/api';
 
 export default function PatientDashboard({ onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();  // real logged-in user
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [isBraceletRegistered, setIsBraceletRegistered] = useState(false);
   const [braceletId, setBraceletId] = useState('');
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
@@ -31,23 +35,25 @@ export default function PatientDashboard({ onLogout }) {
   useEffect(() => {
     const setupAgent = async () => {
       try {
-        const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
+        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
         if (apiKey) {
           const executor = await initPatientAgent({ apiKey });
           setAgentExecutor(executor);
-          
-          // Trigger Login Email (Simulated)
-          sendEmailNotification({
-            type: "dashboard",
-            email: "patient@example.com", // In a real app, use the logged-in user's email
-          });
+          if (user?.email) {
+            sendEmailNotification({ type: 'dashboard', email: user.email });
+          }
         }
       } catch (error) {
-        console.error("Failed to initialize Patient AI:", error);
+        console.error('Failed to initialize Patient AI:', error);
       }
     };
     setupAgent();
-  }, []);
+    // Fetch real notifications from API
+    notifApi.list().then(data => {
+      setNotifications(data);
+      setUnreadCount(data.filter(n => !n.is_read).length);
+    }).catch(() => {});
+  }, [user]);
 
   // Proper click-outside-to-close logic
   useEffect(() => {
@@ -59,11 +65,6 @@ export default function PatientDashboard({ onLogout }) {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const notifications = [
-    { id: 1, text: "Your checkup is confirmed for Oct 24.", time: "2h ago", icon: "event_available", color: "text-emerald-500" },
-    { id: 2, text: "New lab results are available for review.", time: "5h ago", icon: "description", color: "text-primary" },
-    { id: 3, text: "Critical: O2 Desaturation trend detected.", time: "1d ago", icon: "error", color: "text-red-500" },
-  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased font-display">
@@ -115,7 +116,7 @@ export default function PatientDashboard({ onLogout }) {
                 className={`p-2 rounded-lg relative transition-colors ${showNotifDropdown ? 'bg-primary/10 text-primary' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
               >
                 <span className="material-symbols-outlined">notifications</span>
-                <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+                {unreadCount > 0 && <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>}
               </button>
               
               {showNotifDropdown && (
@@ -125,12 +126,15 @@ export default function PatientDashboard({ onLogout }) {
                     <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full cursor-pointer hover:bg-primary/20 transition-colors uppercase">Mark all read</span>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.map(n => (
-                      <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none">
-                        <span className={`material-symbols-outlined text-lg ${n.color}`}>{n.icon}</span>
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-slate-400">No notifications yet.</div>
+                    ) : notifications.map(n => (
+                      <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none" onClick={() => notifApi.markRead(n.id)}>
+                        <span className={`material-symbols-outlined text-lg ${n.is_read ? 'text-slate-400' : 'text-primary'}`}>notifications</span>
                         <div>
-                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-snug">{n.text}</p>
-                          <p className="text-[10px] text-slate-400 mt-1 font-medium">{n.time}</p>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-snug">{n.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">{n.message}</p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">{new Date(n.created_at).toLocaleString()}</p>
                         </div>
                       </div>
                     ))}
@@ -153,10 +157,12 @@ export default function PatientDashboard({ onLogout }) {
                 onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); setShowNotifDropdown(false); }}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Alex Johnson</p>
-                  <p className="text-[11px] text-slate-500 font-medium">Patient ID: #4492-B</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{user?.full_name || 'Patient'}</p>
+                  <p className="text-[11px] text-slate-500 font-medium">{user?.email}</p>
                 </div>
-                <img alt="Profile picture of Alex Johnson" className="size-10 rounded-full object-cover border-2 border-primary/20 hover:border-primary transition-colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWciI4_x9AkulnZp4e-4C_Z_O4IaufaxCEYBs-g2HbwF8Kec5hX13HEdahW8kLrXTTY6B6FzaWga0S8miuGnyK3Eehr2mgR2BD2Fm8iN5hppqndm_6RTM-WQmZpHdeQj2bt_M8Y1gMQGlJvQXq8Ibg2s6CJIGJLLL1yuoMzublG-RnUmcEFcMi3jWnTkejN1s9hNdkY_TEdeaBH1bDSUNbf6wMblePLmtO9Gfry6B0WY0AfJEP5mCS5Tohw4AK43YTS2nCCbLeS_Q" />
+                <div className="size-10 rounded-full bg-primary flex items-center justify-center text-white font-bold border-2 border-primary/20">
+                  {(user?.full_name || 'P').charAt(0).toUpperCase()}
+                </div>
               </div>
               
               {showProfileMenu && (
@@ -212,7 +218,7 @@ export default function PatientDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Health Companion"
-            initialMessage="Hi Alex! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!"
+            initialMessage={`Hi ${user?.full_name?.split(' ')[0] || 'there'}! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!`}
             welcomeTitle="Patient Agentic Assistant"
             themeColor="#10b77f"
           />
