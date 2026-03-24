@@ -18,13 +18,16 @@ import Settings from '../Settings';
 import AgentLogs from '../AgentLogs';
 
 import { db } from '@/lib/database';
+import { useAuth } from '@/contexts/AuthContext';
+import { admin as adminApi } from '@/lib/api';
 
 export default function DoctorDashboard({ onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [stats, setStats] = useState({ totalPatients: 0, activeEmergencies: 0, occupancy: '0%' });
-  const userName = localStorage.getItem('sehat_user_name') || "Dr. Sarah Chen";
+  const userName = localStorage.getItem('sehat_user_name') || user?.full_name || "Dr. Sarah Chen";
 
   // Extract current tab from URL
   const activeTab = location.pathname.split('/').pop() || 'dashboard';
@@ -44,14 +47,15 @@ export default function DoctorDashboard({ onLogout }) {
 
     const fetchStats = async () => {
       try {
-        const s = await db.getStats();
+        // Try real API first, fall back to local db mock
+        const s = await adminApi.getStats().catch(() => db.getStats());
         setStats({
           totalPatients: s.totalPatients,
           activeEmergencies: s.activeEmergencies,
-          occupancy: '88%' 
+          occupancy: s.availableBeds != null ? `${Math.round((1 - s.availableBeds / 200) * 100)}%` : '88%'
         });
       } catch (err) {
-        console.error("Failed to fetch dashboard stats:", err);
+        console.error('Failed to fetch dashboard stats:', err);
       }
     };
 
@@ -124,7 +128,7 @@ export default function DoctorDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Clinical Assistant"
-            initialMessage={`Hello ${userName}. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information.`}
+            initialMessage={`Hello ${user?.full_name ? `Dr. ${user.full_name.split(' ').pop()}` : userName}. I'm your Clinical Assistant. I can help with patient records, triage analysis, and hospital information.`}
             welcomeTitle="Clinical Agentic Suite"
             themeColor="#00b289"
           />

@@ -1,7 +1,60 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminLogin({ onConfirm, onBack }) {
+    const { login, register, loginWithGoogle } = useAuth();
     const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        full_name: '',
+        institution: '',
+        npi: ''
+    });
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (error) setError('');
+    };
+
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            await loginWithGoogle('admin');
+            onConfirm();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            if (mode === 'signup') {
+                await register({
+                    email: formData.email,
+                    password: formData.password,
+                    role: 'admin',
+                    full_name: formData.full_name,
+                    phone: formData.npi // repurposing NPI field for now
+                });
+            } else {
+                await login(formData.email, formData.password, 'admin');
+            }
+            onConfirm();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (mode === 'signup') {
         return (
@@ -34,7 +87,13 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                 <button className="flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-slate-900 transition-all">Sign Up</button>
                             </div>
 
-                            <form onSubmit={(e) => { e.preventDefault(); onConfirm(); }} className="space-y-4">
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium animate-shake">
+                                    {error}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="name">Admin Full Name</label>
@@ -47,7 +106,34 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                         <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Professional Email</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">alternate_email</span>
-                                            <input autoComplete="email" className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" id="email" name="email" placeholder="s.chen@medical-center.org" required type="email" />
+                                            <input 
+                                                autoComplete="email" 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="email" 
+                                                name="email" 
+                                                placeholder="s.chen@medical-center.org" 
+                                                required 
+                                                type="email" 
+                                                value={formData.email}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="password">Security Token / Password</label>
+                                        <div className="relative">
+                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
+                                            <input 
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="password" 
+                                                name="password" 
+                                                placeholder="••••••••" 
+                                                required 
+                                                type="password" 
+                                                minLength={6}
+                                                value={formData.password}
+                                                onChange={handleChange}
+                                            />
                                         </div>
                                     </div>
                                     <div>
@@ -73,8 +159,12 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                     </p>
                                 </div>
                                 <div className="pt-2">
-                                    <button className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-vital-green hover:bg-vital-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-vital-green transition-all" type="submit">
-                                        Create Secure Admin Account
+                                    <button 
+                                        className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-vital-green hover:bg-vital-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-vital-green transition-all disabled:opacity-50" 
+                                        type="submit"
+                                        disabled={loading}
+                                    >
+                                        {loading ? "Initializing..." : "Create Secure Admin Account"}
                                     </button>
                                 </div>
                             </form>
@@ -187,8 +277,14 @@ export default function AdminLogin({ onConfirm, onBack }) {
                             <button onClick={() => setMode('signup')} className="flex-1 py-2 text-sm font-medium rounded-lg text-slate-500 hover:text-slate-700 transition-all">Sign Up</button>
                         </div>
 
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium animate-shake">
+                                {error}
+                            </div>
+                        )}
+
                         {/* Login Form */}
-                        <form onSubmit={(e) => { e.preventDefault(); onConfirm(); }} className="space-y-5">
+                        <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Admin Email</label>
@@ -218,10 +314,38 @@ export default function AdminLogin({ onConfirm, onBack }) {
                             </div>
 
                             <div className="pt-2">
-                                <button className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all" type="submit">
-                                    Initialize Secure Session
+                                <button 
+                                    className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50" 
+                                    type="submit"
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Authenticating...' : 'Initialize Secure Session'}
                                 </button>
                             </div>
+
+                            <div className="relative my-6">
+                                <div aria-hidden="true" className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-2 bg-white text-slate-400 font-medium">Or Use Cloud Federation</span>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleGoogleLogin}
+                                disabled={loading}
+                                className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-60 group"
+                            >
+                                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                <span>Continue with Google</span>
+                            </button>
 
                             <div className="relative my-6">
                                 <div aria-hidden="true" className="absolute inset-0 flex items-center">

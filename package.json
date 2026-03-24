@@ -29,14 +29,13 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
-    "express": "^4.21.2",
+    "firebase": "^12.11.0",
     "groq-sdk": "^0.37.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "langchain": "^1.2.30",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "pg": "^8.20.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-is": "^19.2.4",
@@ -49,6 +48,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "autoprefixer": "^10.4.21",
     "puppeteer": "^24.38.0",
     "tailwindcss": "^4.1.14",

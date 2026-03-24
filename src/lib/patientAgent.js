@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGroq } from "@langchain/groq";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
@@ -176,7 +176,7 @@ export async function initPatientAgent({ apiKey }) {
         }),
     ];
 
-    const llm = new ChatOpenAI({
+    const llm = new ChatGroq({
         apiKey: apiKey,
         modelName: "moonshotai/kimi-k2.5",
         temperature: 1,
@@ -203,6 +203,7 @@ export async function initPatientAgent({ apiKey }) {
     3. **Environmental Context**: You check real-time Air Quality to advise on outdoor safety.
     4. **IoT Integration**: You read live data from the Smart Health Bracelet.
     
+    IMPORTANT: If the user sends a simple greeting like 'hi', 'hello', or 'hey', do NOT call any tools. Simply reply with a warm, brief greeting.
     REPLY in the user's language (English, Hindi, Hinglish). Be empathetic but actionable.`;
 
     const agent = createReactAgent({
