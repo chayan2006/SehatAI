@@ -17,9 +17,8 @@ import DoctorBilling from './DoctorBilling';
 import Settings from '../Settings';
 import AgentLogs from '../AgentLogs';
 
-import { db } from '@/lib/database';
 import { useAuth } from '@/contexts/AuthContext';
-import { admin as adminApi } from '@/lib/api';
+import { getHospitalStats } from '@/lib/firestoreService';
 
 export default function DoctorDashboard({ onLogout }) {
   const navigate = useNavigate();
@@ -47,12 +46,11 @@ export default function DoctorDashboard({ onLogout }) {
 
     const fetchStats = async () => {
       try {
-        // Try real API first, fall back to local db mock
-        const s = await adminApi.getStats().catch(() => db.getStats());
+        const s = await getHospitalStats();
         setStats({
           totalPatients: s.totalPatients,
-          activeEmergencies: s.activeEmergencies,
-          occupancy: s.availableBeds != null ? `${Math.round((1 - s.availableBeds / 200) * 100)}%` : '88%'
+          activeEmergencies: s.pendingAppointments,
+          occupancy: s.totalPatients > 0 ? `${Math.min(Math.round((s.totalPatients / 50) * 100), 99)}%` : '0%'
         });
       } catch (err) {
         console.error('Failed to fetch dashboard stats:', err);

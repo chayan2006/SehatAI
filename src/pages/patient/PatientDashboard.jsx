@@ -15,7 +15,7 @@ import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
 import { sendEmailNotification } from '@/lib/emailService';
 import { useAuth } from '@/contexts/AuthContext';
-import { notifications as notifApi } from '@/lib/api';
+import { getNotificationsForUser, markNotificationRead } from '@/lib/firestoreService';
 
 export default function PatientDashboard({ onLogout }) {
   const navigate = useNavigate();
@@ -53,11 +53,13 @@ export default function PatientDashboard({ onLogout }) {
       }
     };
     setupAgent();
-    // Fetch real notifications from API
-    notifApi.list().then(data => {
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.is_read).length);
-    }).catch(() => {});
+    // Fetch real notifications from Firestore
+    if (user?.id) {
+      getNotificationsForUser(user.id).then(data => {
+        setNotifications(data);
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      }).catch(() => {});
+    }
   }, [user]);
 
   // Proper click-outside-to-close logic
@@ -130,10 +132,10 @@ export default function PatientDashboard({ onLogout }) {
                     <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full cursor-pointer hover:bg-primary/20 transition-colors uppercase">Mark all read</span>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-sm text-slate-400">No notifications yet.</div>
-                    ) : notifications.map(n => (
-                      <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none" onClick={() => notifApi.markRead(n.id)}>
+                        {notifications.length === 0 ? (
+                          <div className="p-6 text-center text-sm text-slate-400">No notifications yet.</div>
+                        ) : notifications.map(n => (
+                          <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none" onClick={() => markNotificationRead(n.id)}>
                         <span className={`material-symbols-outlined text-lg ${n.is_read ? 'text-slate-400' : 'text-primary'}`}>notifications</span>
                         <div>
                           <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-snug">{n.title}</p>
