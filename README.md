@@ -9,7 +9,7 @@
 *   **Appointments:** Schedule routine checkups, specialist visits, and telehealth sessions.
 *   **Ambulance Booking & Tracking:** Real-time emergency ambulance dispatch and tracking.
 *   **Medical History & Lab Results:** Secure access to past records and lab test results.
-*   **Medication Management:** Track active prescriptions and receive medication reminders.
+*   **Medication Management:** Track active prescriptions and receive medication reminders
 
 ### 🏥 Doctor & Hospital Portal
 *   **Doctor Dashboard:** Overview of daily schedule, patient queue, and critical alerts.
