@@ -42,16 +42,16 @@ export default function DoctorPatients() {
           // Map DB fields to component fields if necessary
           const mapped = data.map(p => ({
             id: p.id,
-            name: p.name,
-            age: p.age,
-            status: p.status,
+            name: p.full_name || p.name || 'Unknown Patient',
+            age: p.age || 45,
+            status: p.status || 'Stable',
             lastActive: p.last_active || 'n/a',
-            condition: p.ward || 'Observation',
+            condition: p.condition || p.ward || 'Observation',
             hr: 75,
             bp: '120/80',
-            riskScore: p.status === 'Critical' ? 85 : 25,
-            aiNotes: 'Vitals stable.',
-            risks: { sepsis: 5, cardiac: 10, respiratory: 5 }
+            riskScore: p.risk_score || (p.status === 'Critical' ? 85 : 25),
+            aiNotes: p.ai_notes || 'Vitals stable.',
+            risks: p.risks || { sepsis: 5, cardiac: 10, respiratory: 5 }
           }));
           setPatients(mapped);
         }

@@ -1,34 +1,29 @@
 import React, { useState } from 'react';
-import { authService } from '../database/authService';
-
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminLogin({ onConfirm, onBack }) {
+    const { login, register, loginWithGoogle } = useAuth();
     const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [institution, setInstitution] = useState('');
-    const [npi, setNpi] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState('');
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        full_name: '',
+        institution: '',
+        npi: ''
+    });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (error) setError('');
+    };
+
+    const handleGoogleLogin = async () => {
         setLoading(true);
-        setError(null);
-
+        setError('');
         try {
-            if (mode === 'signin') {
-                await authService.signIn({ email, password });
-            } else {
-                await authService.signUp({
-                    email,
-                    password,
-                    fullName,
-                    role: 'admin',
-                    hospitalName: institution, // Map institution to hospital name for admin
-                });
-            }
+            await loginWithGoogle('admin');
             onConfirm();
         } catch (err) {
             setError(err.message);
@@ -37,6 +32,30 @@ export default function AdminLogin({ onConfirm, onBack }) {
         }
     };
 
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            if (mode === 'signup') {
+                await register({
+                    email: formData.email,
+                    password: formData.password,
+                    role: 'admin',
+                    full_name: formData.full_name,
+                    phone: formData.npi, // using NPI field as phone/extra for now
+                    institution: formData.institution
+                });
+            } else {
+                await login(formData.email, formData.password, 'admin');
+            }
+            onConfirm();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (mode === 'signup') {
         return (
@@ -69,39 +88,56 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                 <button className="flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-slate-900 transition-all">Sign Up</button>
                             </div>
 
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium animate-shake">
+                                    {error}
+                                </div>
+                            )}
+
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="name">Admin Full Name</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="full_name">Admin Full Name</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">person</span>
                                             <input 
                                                 className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
-                                                id="name" name="name" placeholder="Dr. Sarah Chen" required type="text" 
-                                                value={fullName} onChange={(e) => setFullName(e.target.value)}
+                                                id="full_name" name="full_name" placeholder="Dr. Sarah Chen" required type="text" 
+                                                value={formData.full_name} onChange={handleChange}
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email-signup">Professional Email</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Professional Email</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">alternate_email</span>
                                             <input 
                                                 autoComplete="email" 
-                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
-                                                id="email-signup" name="email" placeholder="s.chen@medical-center.org" required type="email" 
-                                                value={email} onChange={(e) => setEmail(e.target.value)}
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="email" 
+                                                name="email" 
+                                                placeholder="s.chen@medical-center.org" 
+                                                required 
+                                                type="email" 
+                                                value={formData.email}
+                                                onChange={handleChange}
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="password-signup">Password</label>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="password">Security Token / Password</label>
                                         <div className="relative">
                                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
                                             <input 
-                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
-                                                id="password-signup" name="password" placeholder="••••••••" required type="password" 
-                                                value={password} onChange={(e) => setPassword(e.target.value)}
+                                                className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
+                                                id="password" 
+                                                name="password" 
+                                                placeholder="••••••••" 
+                                                required 
+                                                type="password" 
+                                                minLength={6}
+                                                value={formData.password}
+                                                onChange={handleChange}
                                             />
                                         </div>
                                     </div>
@@ -112,7 +148,7 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                             <input 
                                                 className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
                                                 id="institution" name="institution" placeholder="Central Health Institute" required type="text" 
-                                                value={institution} onChange={(e) => setInstitution(e.target.value)}
+                                                value={formData.institution} onChange={handleChange}
                                             />
                                         </div>
                                     </div>
@@ -123,17 +159,11 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                             <input 
                                                 className="block w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
                                                 id="npi" name="npi" placeholder="10-digit NPI or Secure Code" required type="text" 
-                                                value={npi} onChange={(e) => setNpi(e.target.value)}
+                                                value={formData.npi} onChange={handleChange}
                                             />
                                         </div>
                                     </div>
                                 </div>
-
-                                {error && (
-                                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl">
-                                        {error}
-                                    </div>
-                                )}
 
                                 <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex gap-3">
                                     <span className="material-symbols-outlined text-slate-400 text-lg">info</span>
@@ -261,24 +291,30 @@ export default function AdminLogin({ onConfirm, onBack }) {
                             <button onClick={() => setMode('signup')} className="flex-1 py-2 text-sm font-medium rounded-lg text-slate-500 hover:text-slate-700 transition-all">Sign Up</button>
                         </div>
 
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium animate-shake">
+                                {error}
+                            </div>
+                        )}
+
                         {/* Login Form */}
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email-signin">Admin Email</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1" htmlFor="email">Admin Email</label>
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">alternate_email</span>
                                         <input 
                                             autoComplete="email" 
                                             className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
-                                            id="email-signin" name="email" placeholder="architect@institution.org" required type="email" 
-                                            value={email} onChange={(e) => setEmail(e.target.value)}
+                                            id="email" name="email" placeholder="architect@institution.org" required type="email" 
+                                            value={formData.email} onChange={handleChange}
                                         />
                                     </div>
                                 </div>
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-sm font-semibold text-slate-700" htmlFor="token">Security Token / Password</label>
+                                        <label className="block text-sm font-semibold text-slate-700" htmlFor="password">Security Token / Password</label>
                                         <button
                                             className="text-xs font-medium text-primary hover:text-primary/80 cursor-pointer"
                                             onClick={(e) => {
@@ -293,18 +329,12 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">encrypted</span>
                                         <input 
                                             className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all" 
-                                            id="token" name="token" placeholder="••••••••••••••••" required type="password" 
-                                            value={password} onChange={(e) => setPassword(e.target.value)}
+                                            id="password" name="password" placeholder="••••••••••••••••" required type="password" 
+                                            value={formData.password} onChange={handleChange}
                                         />
                                     </div>
                                 </div>
                             </div>
-
-                            {error && (
-                                <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl">
-                                    {error}
-                                </div>
-                            )}
 
                             <div className="pt-2">
                                 <button 
@@ -312,9 +342,33 @@ export default function AdminLogin({ onConfirm, onBack }) {
                                     type="submit"
                                     disabled={loading}
                                 >
-                                    {loading ? "Initializing..." : "Initialize Secure Session"}
+                                    {loading ? 'Authenticating...' : 'Initialize Secure Session'}
                                 </button>
                             </div>
+
+                            <div className="relative my-6">
+                                <div aria-hidden="true" className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-2 bg-white text-slate-400 font-medium">Or Use Cloud Federation</span>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleGoogleLogin}
+                                disabled={loading}
+                                className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-60 group"
+                            >
+                                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                <span>Continue with Google</span>
+                            </button>
 
                             <div className="relative my-6">
                                 <div aria-hidden="true" className="absolute inset-0 flex items-center">
