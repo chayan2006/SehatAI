@@ -14,7 +14,9 @@ import {
   GoogleAuthProvider,
   signOut 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { messaging } from '@/lib/firebase';
+import { getToken } from 'firebase/messaging';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 const AuthContext = createContext(null);
 
@@ -32,27 +34,32 @@ export function AuthProvider({ children }) {
           const docRef = doc(db, 'users', firebaseUser.uid);
           const docSnap = await getDoc(docRef);
           
+          let userData = null;
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setUser({
+            userData = {
               id: firebaseUser.uid,
               email: firebaseUser.email,
               role: data.role,
               full_name: data.full_name,
               phone: data.phone || '',
               avatar_url: data.avatar_url || null
-            });
-            setToken(firebaseUser.uid);
+            };
           } else {
-            // Edge case: Auth exists but no Firestore profile. Fallback gracefully.
-            setUser({
+            userData = {
               id: firebaseUser.uid,
               email: firebaseUser.email,
-              role: 'patient', // Safe default
+              role: 'patient',
               full_name: 'Unknown User'
-            });
-            setToken(firebaseUser.uid);
+            };
           }
+
+          setUser(userData);
+          setToken(firebaseUser.uid);
+
+          // Request Notification Permission and Store Token
+          requestNotificationPermission(firebaseUser.uid);
+
         } catch (error) {
           console.error("Error fetching user profile:", error);
           setUser(null);
@@ -170,6 +177,34 @@ export function AuthProvider({ children }) {
     await signOut(auth);
     setUser(null);
     setToken(null);
+  };
+
+  /**
+   * requestNotificationPermission — asks browser for permission
+   * and saves the FCM token to Firestore.
+   */
+  const requestNotificationPermission = async (uid) => {
+    if (!messaging) return;
+    
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const fcmToken = await getToken(messaging, {
+          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
+        });
+        
+        if (fcmToken) {
+          console.log('FCM Token generated:', fcmToken);
+          // Save to user profile in Firestore
+          await updateDoc(doc(db, 'users', uid), {
+            fcm_token: fcmToken,
+            last_token_update: new Date().toISOString()
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error getting notification permission:', error);
+    }
   };
 
   return (
