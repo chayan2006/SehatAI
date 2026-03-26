@@ -46,16 +46,19 @@ export function AuthProvider({ children }) {
               phone: data.phone || '',
               avatar_url: data.avatar_url || null
             };
+            setUser(userData);
           } else {
-            userData = {
+            // Document doesn't exist yet (could be race condition during signup)
+            // We set a minimal user object but DON'T default the role to patient immediately
+            setUser({
               id: firebaseUser.uid,
               email: firebaseUser.email,
-              role: 'patient',
-              full_name: 'Unknown User'
-            };
+              role: 'loading', 
+              full_name: firebaseUser.displayName || 'Authenticating...',
+              is_new_user: true
+            });
           }
 
-          setUser(userData);
           setToken(firebaseUser.uid);
 
           // Request Notification Permission and Store Token
@@ -126,15 +129,16 @@ export function AuthProvider({ children }) {
     
     if (!docSnap.exists()) {
       // New user via Google — create their profile
-      const role = expectedRole || 'patient'; // Default to patient if not specified
-      await setDoc(docRef, {
+      const role = expectedRole || 'patient'; 
+      const newUserData = {
         email: firebaseUser.email,
         role: role,
         full_name: firebaseUser.displayName || 'Google User',
         phone: firebaseUser.phoneNumber || '',
         avatar_url: firebaseUser.photoURL || null,
         created_at: new Date().toISOString()
-      });
+      };
+      await setDoc(docRef, newUserData);
 
       // Create portal-specific collections
       if (role === 'patient') {
@@ -142,6 +146,9 @@ export function AuthProvider({ children }) {
       } else if (role === 'doctor') {
         await setDoc(doc(db, 'doctors', firebaseUser.uid), { user_id: firebaseUser.uid, is_available: true });
       }
+
+      // Explicitly set user state to avoid race condition with listener
+      setUser({ id: firebaseUser.uid, ...newUserData });
     } else {
       // Existing user — verify role matches the portal
       const actualRole = docSnap.data().role;
@@ -149,6 +156,7 @@ export function AuthProvider({ children }) {
         await signOut(auth);
         throw new Error(`This Google account is registered as a ${actualRole}. Please use the correct portal.`);
       }
+      setUser({ id: firebaseUser.uid, email: firebaseUser.email, ...docSnap.data() });
     }
     
     return firebaseUser;
@@ -212,21 +220,20 @@ export function AuthProvider({ children }) {
         if (role === 'patient') {
           await supabase.from('patients').upsert({ 
             id: supabaseUid,
-            full_name: full_name,
-            email: email // Added for direct visibility in patients table
+            full_name: full_name
           });
         } else if (role === 'doctor') {
           // Trigger might create hospital, but we ensure the doctor record exists
           await supabase.from('hospitals').upsert({ 
             admin_id: supabaseUid,
             hospital_name: institution || full_name,
-            email: email // Added for direct visibility in hospitals table
+            contact_email: email 
           });
         } else if (role === 'admin' && institution) {
           await supabase.from('hospitals').upsert({ 
             admin_id: supabaseUid,
             hospital_name: institution,
-            email: email // Added for direct visibility in hospitals table
+            contact_email: email 
           });
         }
       } catch (err) {
@@ -240,6 +247,21 @@ export function AuthProvider({ children }) {
     } else if (role === 'doctor') {
       await setDoc(doc(db, 'doctors', firebaseUid), { user_id: firebaseUid, is_available: true });
     }
+
+    // 6. Explicitly set user state to ensure the app reacts to the correct role immediately
+    const finalUserData = {
+      id: firebaseUid,
+      email,
+      role,
+      full_name,
+      phone: phone || '',
+      institution: institution || '',
+      supabase_uid: supabaseUid || null,
+      is_new_user: false
+    };
+    
+    console.log("Registration complete. Setting user state:", finalUserData.role);
+    setUser(finalUserData);
 
     return userCredential.user;
   };

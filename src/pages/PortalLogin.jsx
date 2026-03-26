@@ -26,6 +26,7 @@ export default function PortalLogin({ onLogin }) {
     blood_group: "",
     gender: "",
     city: "",
+    institution: "",
     consent: false,
   });
 
@@ -158,6 +159,7 @@ export default function PortalLogin({ onLogin }) {
         role: internalRole,
         full_name: formData.full_name,
         phone: formData.phone,
+        institution: formData.institution,
       };
 
       if (internalRole === "patient") {
@@ -172,10 +174,17 @@ export default function PortalLogin({ onLogin }) {
         // Doctor/other non-patient signups
       }
 
+      console.log("Verifying registration data:", registerData);
       await register(registerData);
       setSuccess("Account created successfully! Welcome to SehatAI 🎉");
-      setTimeout(() => onLogin(internalRole, formData.full_name), 1200);
+      
+      // Delay to show success message then navigate
+      setTimeout(() => {
+        console.log("Navigating to dashboard with role:", internalRole);
+        onLogin(internalRole, formData.full_name);
+      }, 1500);
     } catch (err) {
+      console.error("Registration error in handleVerifyOtp:", err);
       setOtpError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
@@ -539,20 +548,52 @@ export default function PortalLogin({ onLogin }) {
                           </>
                         )}
 
-                        {/* Non-patient email */}
+                        {/* Non-patient fields (Hospital/Admin) */}
                         {role !== "Patient" && (
-                          <div className="flex flex-col gap-2">
-                            <label className="text-slate-700 text-sm font-semibold">Email</label>
-                            <div className="relative">
-                              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">mail</span>
+                          <div className="space-y-4">
+                            <div className="flex flex-col gap-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">account_balance</span>Institution/Hospital Name
+                              </label>
                               <input
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                placeholder="Enter your email"
-                                type="email"
+                                name="institution"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                placeholder="Central Health Institute"
+                                type="text"
                                 required
+                                value={formData.institution}
+                                onChange={handleChange}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">mail</span>Work Email
+                              </label>
+                              <div className="relative">
+                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">mail</span>
+                                <input
+                                  name="email"
+                                  value={formData.email}
+                                  onChange={handleChange}
+                                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                  placeholder="Enter your email"
+                                  type="email"
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">call</span>Phone Number
+                              </label>
+                              <input
+                                name="phone"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                placeholder="+1 123 456 7890"
+                                type="tel"
+                                required
+                                value={formData.phone}
+                                onChange={handleChange}
                               />
                             </div>
                           </div>

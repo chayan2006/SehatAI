@@ -92,10 +92,13 @@ export default function Login({ onLogin }) {
           </div>
 
           <div className="mt-16 flex flex-col items-center gap-4">
-            <a className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2" href="#">
+            <button 
+              onClick={() => onLogin('patient')}
+              className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2"
+            >
               <span className="material-symbols-outlined text-lg">person_add</span>
               Create a new SehatAI Account
-            </a>
+            </button>
             <button className="text-slate-500 hover:text-primary text-sm font-medium transition-colors">
               Need help accessing your account?
             </button>

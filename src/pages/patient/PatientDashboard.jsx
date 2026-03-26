@@ -43,6 +43,13 @@ export default function PatientDashboard({ onLogout }) {
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
 
+  // Role Protection: If user is logged in but NOT a patient, redirect them back to their correct dashboard
+  useEffect(() => {
+    if (user && user.role !== 'patient') {
+      navigate(`/${user.role}/dashboard`, { replace: true });
+    }
+  }, [user, navigate]);
+
   useEffect(() => {
     const setupAgent = async () => {
       try {

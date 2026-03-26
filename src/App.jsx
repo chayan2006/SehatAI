@@ -37,7 +37,7 @@ export default function App() {
 
   // Redirect to dashboard after login if already on a login/root page
   useEffect(() => {
-    if (loading || !user) return;
+    if (loading || !user || user.role === 'loading') return;
     const onLoginPage =
       location.pathname === '/' ||
       location.pathname.startsWith('/portal') ||
