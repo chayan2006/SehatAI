@@ -13,6 +13,7 @@ import PatientDashboard from '@/pages/patient/PatientDashboard';
 // Hospital portal — lazily loaded to keep main bundle lean
 const HospitalLoginPage = lazy(() => import('@/pages/hospital/HospitalLogin'));
 const HospitalDashboardPage = lazy(() => import('@/pages/hospital/HospitalDashboard'));
+const HospitalRegisterPage = lazy(() => import('@/pages/hospital/HospitalRegister'));
 
 function LoadingScreen() {
   return (
@@ -54,18 +55,23 @@ export default function App() {
     navigate(`/${selectedRole}/dashboard`);
   };
 
+  // When user picks a portal from the gateway, log out any existing session first
+  // so the auth-redirect useEffect doesn't bounce them back to their old dashboard.
+  const handlePortalSelect = async (selectedRole) => {
+    if (user) {
+      await logout();
+    }
+    if (selectedRole === 'admin') { navigate('/admin/login'); return; }
+    navigate(`/portal/${selectedRole}`);
+  };
+
   return (
     <Routes>
       {/* ── Public routes ── */}
       <Route
         path="/"
         element={
-          <Login
-            onLogin={(r) => {
-              if (r === 'admin') navigate('/admin/login');
-              else navigate(`/portal/${r}`);
-            }}
-          />
+          <Login onLogin={handlePortalSelect} />
         }
       />
       <Route path="/portal/:loginRole" element={<PortalLogin onLogin={handleLoginSuccess} />} />
@@ -76,6 +82,14 @@ export default function App() {
 
       {/* ── Hospital Portal (session-based, independent of Firebase user roles) ── */}
       <Route path="/hospital" element={<Navigate to="/hospital/lks/login" replace />} />
+      <Route
+        path="/hospital/register"
+        element={
+          <Suspense fallback={<LoadingScreen />}>
+            <HospitalRegisterPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/hospital/:hospitalId/login"
         element={

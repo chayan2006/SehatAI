@@ -44,7 +44,9 @@ export function AuthProvider({ children }) {
               role: data.role,
               full_name: data.full_name,
               phone: data.phone || '',
-              avatar_url: data.avatar_url || null
+              avatar_url: data.avatar_url || null,
+              hospital_id: data.hospital_id || null,
+              primaryHospitalId: data.primaryHospitalId || null
             };
             setUser(userData);
           } else {
@@ -118,7 +120,7 @@ export function AuthProvider({ children }) {
    * loginWithGoogle — authenticates with Google.
    * If the user is new, we create their Firestore profile with the expected role.
    */
-  const loginWithGoogle = async (expectedRole) => {
+  const loginWithGoogle = async (expectedRole, extraData = {}) => {
     const provider = new GoogleAuthProvider();
     const userCredential = await signInWithPopup(auth, provider);
     const firebaseUser = userCredential.user;
@@ -133,10 +135,11 @@ export function AuthProvider({ children }) {
       const newUserData = {
         email: firebaseUser.email,
         role: role,
-        full_name: firebaseUser.displayName || 'Google User',
+        full_name: extraData.full_name || firebaseUser.displayName || 'Google User',
         phone: firebaseUser.phoneNumber || '',
         avatar_url: firebaseUser.photoURL || null,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        ...extraData
       };
       await setDoc(docRef, newUserData);
 

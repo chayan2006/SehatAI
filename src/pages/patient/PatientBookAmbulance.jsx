@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sendEmailNotification } from '@/lib/emailService';
+import { getUserLocation, getNearestHospital } from '@/lib/locationService';
 
 const URGENCY_LEVELS = [
   {
@@ -33,8 +34,8 @@ const FACILITIES = [
 
 export default function PatientBookAmbulance({ onNavigate }) {
   const [urgency, setUrgency]           = useState('high');
-  const [pickup, setPickup]             = useState('123 Maple St, Springfield');
-  const [destination, setDestination]   = useState('Saint Jude Medical Center');
+  const [pickup, setPickup]             = useState('Locating...');
+  const [destination, setDestination]   = useState('Finding nearest facility...');
   const [notes, setNotes]               = useState('');
   const [dispState, setDispState]       = useState('idle');
   const [eta, setEta]                   = useState(8);
@@ -46,6 +47,21 @@ export default function PatientBookAmbulance({ onNavigate }) {
   const etaRef  = React.useRef(null);
   const ambRef  = React.useRef(null);
   const callRef = React.useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const loc = await getUserLocation();
+        const nearest = getNearestHospital(loc.lat, loc.lng);
+        setPickup(loc.label || "Current Location");
+        if (nearest) {
+          setDestination(nearest.name);
+        }
+      } catch (err) {
+        console.error("Failed to load location", err);
+      }
+    })();
+  }, []);
 
   const addLog = (msg, icon, color) => {
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -397,7 +413,7 @@ export default function PatientBookAmbulance({ onNavigate }) {
                   </span>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nearest Facility</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">Saint Jude Medical Center (1.2 mi)</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{destination}</p>
                   </div>
                 </div>
                 <span className="text-xs font-black text-green-600 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">Open 24/7</span>

@@ -69,24 +69,24 @@ export const patients = {
     });
   },
 
-  linkHospital: async (hospitalUid) => {
+  linkHospital: async (hospitalId) => {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error('Not authenticated');
-    return updateDoc(doc(db, 'users', uid), { hospital_uid: hospitalUid });
+    return updateDoc(doc(db, 'users', uid), { primaryHospitalId: hospitalId });
   },
 
-  getPatientsForHospital: async (hospitalUid) => {
-    if (!hospitalUid) return [];
-    const q = query(collection(db, 'users'), where('role', '==', 'patient'), where('hospital_uid', '==', hospitalUid));
+  getPatientsForHospital: async (hospitalId) => {
+    if (!hospitalId) return [];
+    const q = query(collection(db, 'users'), where('role', '==', 'patient'), where('primaryHospitalId', '==', hospitalId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
-  addPatientForHospital: async (data, hospitalUid) => {
+  addPatientForHospital: async (data, hospitalId) => {
     return addDoc(collection(db, 'users'), {
       ...data,
       role: 'patient',
-      hospital_uid: hospitalUid,
+      primaryHospitalId: hospitalId,
       created_at: new Date().toISOString()
     });
   },

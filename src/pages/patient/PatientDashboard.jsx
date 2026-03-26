@@ -35,6 +35,7 @@ export default function PatientDashboard({ onLogout }) {
   const [unreadCount, setUnreadCount] = useState(0);
   // Medical profile gate & location
   const [medicalProfileComplete, setMedicalProfileComplete] = useState(true);
+  const [medicalProfileData, setMedicalProfileData] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [primaryHospital, setPrimaryHospital] = useState(null);
@@ -87,6 +88,12 @@ export default function PatientDashboard({ onLogout }) {
         const userSnap = await getDoc(doc(db, 'users', user.id));
         const data = userSnap.data() || {};
         setMedicalProfileComplete(!!data.medicalProfileComplete);
+        
+        const patientSnap = await getDoc(doc(db, 'patients', user.id));
+        if (patientSnap.exists()) {
+          setMedicalProfileData(patientSnap.data().medicalProfile || null);
+        }
+
         if (data.primaryHospitalId) {
           setPrimaryHospital(getHospital(data.primaryHospitalId));
         }
@@ -282,7 +289,16 @@ export default function PatientDashboard({ onLogout }) {
         <div className="flex-1 overflow-y-auto no-scrollbar" onClick={() => { setShowNotifDropdown(false); setShowProfileMenu(false); }}>
           <Routes>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardView userName={userName} onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
+            <Route path="dashboard" element={
+              <DashboardView 
+                userName={userName} 
+                medicalProfile={medicalProfileData}
+                onNavigate={(id) => navigate(`/patient/${id}`)} 
+                isBraceletRegistered={isBraceletRegistered} 
+                setIsBraceletRegistered={setIsBraceletRegistered} 
+                setBraceletId={setBraceletId} 
+              />
+            } />
             <Route path="appointments" element={<PatientAppointments onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="confirmation" element={<PatientBookingConfirmation onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="health" element={<PatientHistory onNavigate={(id) => navigate(`/patient/${id}`)} />} />
@@ -327,7 +343,7 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ userName, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
+function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
 
 
@@ -367,6 +383,67 @@ function DashboardView({ userName, onNavigate, isBraceletRegistered, setIsBracel
           Book Medical Checkup
         </button>
       </section>
+
+      {/* Injury Alert */}
+      {medicalProfile?.hasRecentInjury && (
+        <section className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800/50 rounded-2xl p-6 shadow-sm animate-in fade-in slide-in-from-top-4">
+          <div className="flex gap-4 items-start">
+            <div className="size-12 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-2xl">healing</span>
+            </div>
+            <div>
+              <h3 className="text-orange-800 dark:text-orange-300 font-bold text-lg">Active Injury Management</h3>
+              <p className="text-orange-600 dark:text-orange-400 text-sm mt-1">{medicalProfile.injuryDescription}</p>
+              <div className="mt-4 flex gap-3">
+                <button onClick={() => onNavigate('ambulance')} className="px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg shadow-md hover:bg-orange-600 transition-colors">Book Urgent Transport</button>
+                <button onClick={() => onNavigate('appointments')} className="px-4 py-2 bg-white text-orange-600 text-sm font-bold border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors">Consult Specialist</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Demographics Card */}
+      {medicalProfile && (
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+            <div className="size-10 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center font-bold">
+              <span className="material-symbols-outlined text-lg">bloodtype</span>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400 font-bold tracking-widest">Blood</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{medicalProfile.bloodGroup}</p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+            <div className="size-10 rounded-full bg-green-50 dark:bg-green-900/20 text-green-500 flex items-center justify-center font-bold">
+              <span className="material-symbols-outlined text-lg">height</span>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400 font-bold tracking-widest">Height</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{medicalProfile.heightCm} <span className="text-sm">cm</span></p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+            <div className="size-10 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-500 flex items-center justify-center font-bold">
+              <span className="material-symbols-outlined text-lg">monitor_weight</span>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400 font-bold tracking-widest">Weight</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{medicalProfile.weightKg} <span className="text-sm">kg</span></p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+            <div className="size-10 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center font-bold">
+              <span className="material-symbols-outlined text-lg">cake</span>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400 font-bold tracking-widest">Age</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{medicalProfile.age} <span className="text-sm">yrs</span></p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Health Pulse Grid / Bracelet Tracker */}
       <section>

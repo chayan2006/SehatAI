@@ -3,8 +3,8 @@ import { hospitalService } from "@/database/hospitalService";
 import { getHospitalStats } from "@/lib/supabaseService";
 import { Badge } from "@/components/ui/badge";
 
-export default function DoctorOverview() {
-  const [stats, setStats] = useState({
+export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) {
+  const [stats, setStats] = useState(propStats || {
     totalPatients: 1284,
     activeBeds: 412,
     totalBeds: 488,
@@ -21,12 +21,12 @@ export default function DoctorOverview() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (propStats) { setLoading(false); return; } // use passed-in stats if provided
     const loadDashboardData = async () => {
       try {
         const hospital = await hospitalService.getMyHospital();
         if (!hospital) return;
 
-        // 1. Fetch real stats
         const [s, realWards, staff] = await Promise.all([
           getHospitalStats(),
           hospitalService.getWards(hospital.id),
@@ -71,6 +71,7 @@ export default function DoctorOverview() {
     loadDashboardData();
   }, []);
 
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
@@ -90,8 +91,8 @@ export default function DoctorOverview() {
             {!stats.isMock && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">REAL-TIME</span>}
             {stats.isMock && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">+12%</span>}
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Total Patients</p>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients.toLocaleString()}</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">{hospitalInfo?.shortName ? `${hospitalInfo.shortName} Patients` : "Total Patients"}</p>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients?.toLocaleString?.() || stats.totalPatients || "1,284"}</h3>
         </div>
 
         <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-800 group hover:translate-y-[-2px] transition-all">
@@ -103,7 +104,7 @@ export default function DoctorOverview() {
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Active Beds</p>
           <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            {stats.activeBeds}<span className="text-lg text-slate-300 dark:text-slate-600 font-normal ml-1">/{stats.totalBeds}</span>
+            {stats.activeBeds}<span className="text-lg text-slate-300 dark:text-slate-600 font-normal ml-1">/{stats.totalBeds || hospitalInfo?.beds || 488}</span>
           </h3>
         </div>
 
@@ -132,7 +133,12 @@ export default function DoctorOverview() {
         {/* Ward Occupancy & Bed Management */}
         <section className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Ward Occupancy</h2>
+            <div>
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Ward Occupancy</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 max-w-sm">
+                Showing data for <span className="font-bold text-primary">{hospitalInfo?.specialty || "General Wards"}</span>
+              </p>
+            </div>
             <button className="text-xs font-bold text-primary hover:underline hover:underline-offset-4 transition-all">View Map View</button>
           </div>
           

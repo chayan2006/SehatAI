@@ -44,7 +44,7 @@ export default function DoctorPatients() {
         const hospital = await hospitalService.getMyHospital();
         if (hospital) {
           setHospitalId(hospital.id);
-          
+
           const data = await patientService.getPatients(hospital.id);
           const realPatients = data ? data.map(p => ({
             id: p.id,
@@ -60,8 +60,6 @@ export default function DoctorPatients() {
             risks: p.risks || { sepsis: 5, cardiac: 10, respiratory: 5 }
           })) : [];
 
-          // Merge: Real patients first, then mock ones (to ensure the list is always full)
-          // We filter out mock patients that might have the same Name as real ones to avoid duplicates
           const uniqueMockPatients = initialPatients.filter(
             mock => !realPatients.some(real => real.name === mock.name)
           );
@@ -78,6 +76,7 @@ export default function DoctorPatients() {
     initPortal();
   }, [user]);
 
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [predictionMode, setPredictionMode] = useState(false);
   
@@ -89,6 +88,7 @@ export default function DoctorPatients() {
   const handleAddPatient = async (e) => {
     e.preventDefault();
     if (!newName) return;
+    const hospitalId = user?.primaryHospitalId || user?.hospital_id;
     
     const newPatientData = {
       full_name: newName,
@@ -108,13 +108,13 @@ export default function DoctorPatients() {
         ...newPatientData,
         hospital_id: hospitalId
       });
-      
+
       const mapped = {
         id: addedPatient?.id || Date.now(),
         name: newPatientData.full_name,
         ...newPatientData
       };
-      
+
       setPatients([mapped, ...patients]);
       if (addedPatient) setIsMocking(false);
     } catch (e) {
