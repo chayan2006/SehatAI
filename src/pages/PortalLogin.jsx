@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendOtpEmail } from "@/lib/emailService";
 
@@ -9,6 +9,7 @@ const generateOTP = () => "769854";
 
 export default function PortalLogin({ onLogin }) {
   const { loginRole } = useParams();
+  const navigate = useNavigate();
   const { login, register, loginWithGoogle } = useAuth();
 
   const [mode, setMode] = useState("signin");
@@ -665,7 +666,15 @@ export default function PortalLogin({ onLogin }) {
                   {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
                   <button
                     className="text-primary font-bold hover:underline"
-                    onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}
+                    onClick={() => {
+                      if (mode === "signin" && role === "Hospital") {
+                        // Hospital registration → dedicated multi-step onboarding page
+                        navigate('/hospital/register');
+                      } else {
+                        setMode(mode === "signin" ? "signup" : "signin");
+                        setError("");
+                      }
+                    }}
                   >
                     {mode === "signin" ? "Register here" : "Sign in"}
                   </button>
