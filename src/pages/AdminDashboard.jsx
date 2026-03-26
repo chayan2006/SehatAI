@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
 import AIChat from '@/components/AIChat';
+import { getHospitalStats } from '@/lib/supabaseService';
 
 import AnalyticsView from '../components/admin/AnalyticsView';
 import ResourcesView from '../components/admin/ResourcesView';
@@ -101,8 +102,8 @@ export default function AdminDashboard({ role, onLogout }) {
     const activeNav = location.pathname.split('/').pop() || 'dashboard';
     const [escalations, setEscalations] = useState(INITIAL_ESCALATIONS);
     const [agents, setAgents] = useState(INITIAL_AGENTS);
-    const [patientCount, setPatientCount] = useState(1284);
-    const [throughput, setThroughput] = useState(2400);
+    const [patientCount, setPatientCount] = useState(0);
+    const [throughput, setThroughput] = useState(0);
     const [throughputPct, setThroughputPct] = useState(84);
     const [searchQuery, setSearchQuery] = useState('');
     const [showNotifs, setShowNotifs] = useState(false);
@@ -204,9 +205,13 @@ export default function AdminDashboard({ role, onLogout }) {
 
     // ── Live metrics tick ────────────────────────────────────────────────────────
     useEffect(() => {
+        // Fetch real data on mount
+        getHospitalStats().then(stats => {
+            setPatientCount(stats.totalPatients);
+            setThroughput(stats.totalAppointments); 
+        }).catch(e => console.error("Stats error", e));
+
         const interval = setInterval(() => {
-            setPatientCount(p => randomDelta(p, -5, 12, 1200, 1400));
-            setThroughput(p => randomDelta(p, -50, 80, 2000, 3000));
             setThroughputPct(p => randomDelta(p, -2, 2, 70, 99));
             setAgents(prev => prev.map(a => ({ ...a, load: randomDelta(a.load, -4, 4, 5, 99) })));
             setLatencyData(prev => {

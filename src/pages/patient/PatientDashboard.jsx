@@ -5,9 +5,10 @@ import PatientAppointments from './PatientAppointments';
 import PatientHistory from './PatientHistory';
 import PatientAmbulance from './PatientAmbulance';
 import PatientBookAmbulance from './PatientBookAmbulance';
-
 import PatientBookingConfirmation from './PatientBookingConfirmation';
 import PatientSettings from './PatientSettings';
+import PatientMedicalSetup from './PatientMedicalSetup';
+import PatientEmergency from './PatientEmergency';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
@@ -15,7 +16,11 @@ import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
 import { sendEmailNotification } from '@/lib/emailService';
 import { useAuth } from '@/contexts/AuthContext';
-import { notifications as notifApi } from '@/lib/api';
+import { getNotificationsForUser, markNotificationRead } from '@/lib/supabaseService';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { getUserLocation } from '@/lib/locationService';
+import { getHospital } from '@/lib/hospitalConfig';
 
 export default function PatientDashboard({ onLogout }) {
   const navigate = useNavigate();
@@ -28,6 +33,11 @@ export default function PatientDashboard({ onLogout }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Medical profile gate & location
+  const [medicalProfileComplete, setMedicalProfileComplete] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const [primaryHospital, setPrimaryHospital] = useState(null);
 
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
@@ -48,12 +58,35 @@ export default function PatientDashboard({ onLogout }) {
       }
     };
     setupAgent();
-    // Fetch real notifications from API
-    notifApi.list().then(data => {
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.is_read).length);
-    }).catch(() => {});
+    // Fetch real notifications from Firestore
+    if (user?.id) {
+      getNotificationsForUser(user.id).then(data => {
+        setNotifications(data);
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      }).catch(() => {});
+    }
   }, [user]);
+
+  // Check medical profile completion & load hospital info
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.id));
+        const data = userSnap.data() || {};
+        setMedicalProfileComplete(!!data.medicalProfileComplete);
+        if (data.primaryHospitalId) {
+          setPrimaryHospital(getHospital(data.primaryHospitalId));
+        }
+      } catch (e) {
+        setMedicalProfileComplete(true); // fail open
+      } finally {
+        setProfileLoading(false);
+      }
+    })();
+    // Request location permission on login
+    getUserLocation().then(setUserLocation);
+  }, [user?.id]);
 
   // Proper click-outside-to-close logic
   useEffect(() => {
@@ -65,6 +98,26 @@ export default function PatientDashboard({ onLogout }) {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
+
+  // Show medical setup if profile incomplete
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <span className="animate-spin material-symbols-outlined text-primary text-4xl">progress_activity</span>
+      </div>
+    );
+  }
+
+  if (!medicalProfileComplete) {
+    return (
+      <PatientMedicalSetup
+        onComplete={() => {
+          setMedicalProfileComplete(true);
+          navigate('/patient/dashboard');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased font-display">
@@ -86,7 +139,24 @@ export default function PatientDashboard({ onLogout }) {
           <NavItem id="medications" icon="pill" label="Medications" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
           <NavItem id="support"    icon="support_agent"  label="Support"       active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
           <NavItem id="ambulance"  icon="ambulance"      label="Book Ambulance" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="emergency"  icon="emergency"      label="Emergency SOS"  active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
         </nav>
+        {/* Location status pill */}
+        {userLocation && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-800/30">
+            <p className="text-[10px] font-bold text-green-600 dark:text-green-400 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">location_on</span>
+              {userLocation.isFallback ? 'Default: Bharat Mandapam' : 'Location Detected'}
+            </p>
+          </div>
+        )}
+        {/* Primary hospital badge */}
+        {primaryHospital && (
+          <div className="mx-4 mb-4 px-3 py-2 rounded-xl border" style={{ background: primaryHospital.theme.secondary, borderColor: primaryHospital.theme.primary + '40' }}>
+            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: primaryHospital.theme.primary }}>Primary Hospital</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">{primaryHospital.shortName}</p>
+          </div>
+        )}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800">
           <div className="bg-primary/5 rounded-xl p-4">
             <p className="text-xs font-semibold text-primary mb-1">Premium Health Plan</p>
@@ -126,10 +196,10 @@ export default function PatientDashboard({ onLogout }) {
                     <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full cursor-pointer hover:bg-primary/20 transition-colors uppercase">Mark all read</span>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-sm text-slate-400">No notifications yet.</div>
-                    ) : notifications.map(n => (
-                      <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none" onClick={() => notifApi.markRead(n.id)}>
+                        {notifications.length === 0 ? (
+                          <div className="p-6 text-center text-sm text-slate-400">No notifications yet.</div>
+                        ) : notifications.map(n => (
+                          <div key={n.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800 last:border-none" onClick={() => markNotificationRead(n.id)}>
                         <span className={`material-symbols-outlined text-lg ${n.is_read ? 'text-slate-400' : 'text-primary'}`}>notifications</span>
                         <div>
                           <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-snug">{n.title}</p>
@@ -210,6 +280,7 @@ export default function PatientDashboard({ onLogout }) {
             <Route path="support" element={<PatientAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="ambulance" element={<PatientBookAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="settings" element={<PatientSettings onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="emergency" element={<PatientEmergency onNavigate={(id) => navigate(`/patient/${id}`)} />} />
           </Routes>
         </div>
 
