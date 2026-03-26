@@ -5,3 +5,6 @@ flask-cors
 pillow
 numpy
 kagglehub
+pandas
+scikit-learn
+joblib
