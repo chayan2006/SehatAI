@@ -8,6 +8,7 @@
 export const HOSPITALS = {
   lks: {
     id: 'lks',
+    supabaseId: '11111111-1111-1111-1111-111111111111',
     name: 'Lok Kalyan Samiti (LKS) Hospital',
     shortName: 'LKS Hospital',
     email: 'admin@lkshospital.in',

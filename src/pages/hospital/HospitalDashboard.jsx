@@ -4,19 +4,17 @@
  * Color-coded, hospital-specific dashboard.
  * Shows ONLY the patients registered to this hospital (hospital-specific filtering).
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, auth } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { HOSPITALS, HOSPITAL_LIST } from '@/lib/hospitalConfig';
+import { auth } from '@/lib/firebase';
+import { HOSPITALS } from '@/lib/hospitalConfig';
+import { hospitalService, patientService } from '@/database';
 
 import HospitalWard from './HospitalWard';
 import HospitalStaff from './HospitalStaff';
 import HospitalBilling from './HospitalBilling';
 import HospitalSettings from './HospitalSettings';
-
-
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -24,18 +22,17 @@ const TABS = [
   { id: 'wards', label: 'Wards', icon: 'hotel' },
   { id: 'staff', label: 'Staffing', icon: 'badge' },
   { id: 'billing', label: 'Financials', icon: 'payments' },
-  {id: 'emergency', label: 'Emergency', icon: 'emergency' },
+  { id: 'emergency', label: 'Emergency', icon: 'emergency' },
   { id: 'stats', label: 'Analytics', icon: 'bar_chart' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
-
-
 export default function HospitalDashboard() {
-  const { hospitalId } = useParams();
+  const { hospitalId: slug } = useParams();
   const navigate = useNavigate();
 
-  const hospital = HOSPITALS[hospitalId];
+  const hospital = HOSPITALS[slug];
+  const dbId = hospital?.supabaseId || slug; // Use Supabase UUID if mapped
   const theme = hospital?.theme;
 
   const [session, setSession] = useState(null);
@@ -46,47 +43,51 @@ export default function HospitalDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // all | critical | admitted | stable
-
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Redirect if not this hospital
   useEffect(() => {
     const sess = sessionStorage.getItem('hospitalSession');
-    if (!sess) { navigate(`/hospital/${hospitalId}/login`); return; }
+    if (!sess) { navigate(`/hospital/${slug}/login`); return; }
     const parsed = JSON.parse(sess);
-    if (parsed.hospitalId !== hospitalId) {
+    if (parsed.hospitalId !== slug) {
       navigate(`/hospital/${parsed.hospitalId}/dashboard`);
       return;
     }
     setSession(parsed);
-  }, [hospitalId, navigate]);
+  }, [slug, navigate]);
 
-  // Load patients for this hospital only
+  // Load patients for this hospital 
   useEffect(() => {
-    if (!hospitalId) return;
-    setLoading(true);
-    const patientsRef = collection(db, 'patients');
-    const q = query(patientsRef, where('primaryHospitalId', '==', hospitalId));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPatients(data);
+    if (!dbId) return;
+    loadDashboardData();
+  }, [dbId]);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const data = await patientService.getPatients(dbId);
+      setPatients(data || []);
+      
+      // Calculate stats
       const today = new Date().toDateString();
       setStats({
         total: data.length,
-        critical: data.filter(p => p.medicalProfile?.hasRecentInjury).length,
-        admitted: Math.floor(data.length * 0.3),
-        today: data.filter(p => p.medicalProfile?.registeredAt &&
-          new Date(p.medicalProfile.registeredAt).toDateString() === today).length,
+        critical: data.filter(p => p.medical_profile?.hasRecentInjury || p.severity === 'Critical').length,
+        admitted: data.filter(p => p.status === 'Admitted').length || Math.floor(data.length * 0.3),
+        today: data.filter(p => p.created_at && new Date(p.created_at).toDateString() === today).length,
       });
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+    } finally {
       setLoading(false);
-    }, () => setLoading(false));
-    return () => unsub();
-  }, [hospitalId]);
+    }
+  };
 
   const handleLogout = async () => {
     sessionStorage.removeItem('hospitalSession');
     await signOut(auth);
-    navigate(`/hospital/${hospitalId}/login`);
+    navigate(`/hospital/${slug}/login`);
   };
 
   if (!hospital) {
@@ -313,8 +314,8 @@ export default function HospitalDashboard() {
 
                   {(() => {
                     const filtered = patients.filter(p => {
-                      const mp = p.medicalProfile || {};
-                      const nameMatch = (mp.emergencyContact || p.id).toLowerCase().includes(searchQuery.toLowerCase());
+                      const mp = p.medical_profile || p.medicalProfile || {};
+                      const nameMatch = (p.full_name || mp.emergencyContact || p.id).toLowerCase().includes(searchQuery.toLowerCase());
                       const statusMatch = statusFilter === 'all' || 
                         (statusFilter === 'critical' && mp.hasRecentInjury) ||
                         (statusFilter === 'admitted' && !mp.hasRecentInjury) || // Simplified logic for demo
@@ -454,22 +455,22 @@ export default function HospitalDashboard() {
 
               {/* ── WARDS TAB ── */}
               {activeTab === 'wards' && (
-                <HospitalWard hospitalId={hospitalId} primaryColor={primaryColor} theme={theme} />
+                <HospitalWard hospitalId={dbId} primaryColor={primaryColor} theme={theme} />
               )}
 
               {/* ── STAFF TAB ── */}
               {activeTab === 'staff' && (
-                <HospitalStaff hospitalId={hospitalId} primaryColor={primaryColor} theme={theme} />
+                <HospitalStaff hospitalId={dbId} primaryColor={primaryColor} theme={theme} />
               )}
 
               {/* ── BILLING TAB ── */}
               {activeTab === 'billing' && (
-                <HospitalBilling hospitalId={hospitalId} primaryColor={primaryColor} theme={theme} />
+                <HospitalBilling hospitalId={dbId} primaryColor={primaryColor} theme={theme} />
               )}
 
               {/* ── SETTINGS TAB ── */}
               {activeTab === 'settings' && (
-                <HospitalSettings hospitalId={hospitalId} primaryColor={primaryColor} theme={theme} />
+                <HospitalSettings hospitalId={dbId} primaryColor={primaryColor} theme={theme} />
               )}
 
 
@@ -484,7 +485,7 @@ export default function HospitalDashboard() {
 // ─── Helper Components ───
 
 function PatientRow({ patient, primaryColor, onClick }) {
-  const mp = patient.medicalProfile || {};
+  const mp = patient.medical_profile || patient.medicalProfile || {};
   return (
     <div onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors">
       <div className="size-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
@@ -492,8 +493,8 @@ function PatientRow({ patient, primaryColor, onClick }) {
         {(mp.emergencyContact || patient.id)?.[0]?.toUpperCase() || 'P'}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-slate-900 truncate">{mp.emergencyContact || `Patient ${patient.id.slice(-4)}`}</p>
-        <p className="text-xs text-slate-500">{mp.bloodGroup || '?'} Blood • Age {mp.age || '?'}</p>
+        <p className="text-sm font-bold text-slate-900 truncate">{patient.full_name || mp.emergencyContact || `Patient ${patient.id.slice(-4)}`}</p>
+        <p className="text-xs text-slate-500">{patient.blood_group || mp.bloodGroup || '?'} Blood • Age {patient.age || mp.age || '?'}</p>
       </div>
       {mp.hasRecentInjury && (
         <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded-full">Injury</span>
@@ -503,24 +504,24 @@ function PatientRow({ patient, primaryColor, onClick }) {
 }
 
 function PatientDetailCard({ patient, primaryColor, theme, isExpanded, onClick }) {
-  const mp = patient.medicalProfile || {};
+  const mp = patient.medical_profile || patient.medicalProfile || {};
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div onClick={onClick} className="flex items-center gap-4 p-5 cursor-pointer hover:bg-slate-50 transition-colors">
         <div className="size-12 rounded-xl flex items-center justify-center text-white font-bold shrink-0"
           style={{ background: primaryColor }}>
-          {mp.gender === 'female' ? '♀' : '♂'}
+          {(patient.gender || mp.gender) === 'female' ? '♀' : '♂'}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-bold text-slate-900">{mp.emergencyContact || `Patient ${patient.id.slice(-6)}`}</p>
+            <p className="font-bold text-slate-900">{patient.full_name || mp.emergencyContact || `Patient ${patient.id.slice(-6)}`}</p>
             {getTriageBadge(mp)}
           </div>
 
           <div className="flex items-center gap-4 mt-1">
-            <span className="text-xs text-slate-500">Age: {mp.age || 'N/A'}</span>
-            <span className="text-xs text-slate-500">Blood: {mp.bloodGroup || 'N/A'}</span>
-            <span className="text-xs text-slate-500">BMI: {mp.bmi || 'N/A'}</span>
+            <span className="text-xs text-slate-500">Age: {patient.age || mp.age || 'N/A'}</span>
+            <span className="text-xs text-slate-500">Blood: {patient.blood_group || mp.bloodGroup || 'N/A'}</span>
+            <span className="text-xs text-slate-500">BMI: {patient.bmi || mp.bmi || 'N/A'}</span>
           </div>
         </div>
         <span className={`material-symbols-outlined text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
@@ -571,14 +572,14 @@ function PatientDetailCard({ patient, primaryColor, theme, isExpanded, onClick }
 // ─── Analytics helpers ───
 function getBloodGroupStats(patients) {
   return patients.reduce((acc, p) => {
-    const bg = p.medicalProfile?.bloodGroup || 'Unknown';
+    const bg = p.blood_group || p.medicalProfile?.bloodGroup || 'Unknown';
     acc[bg] = (acc[bg] || 0) + 1;
     return acc;
   }, {});
 }
 function getGenderStats(patients) {
   return patients.reduce((acc, p) => {
-    const g = p.medicalProfile?.gender || 'unknown';
+    const g = p.gender || p.medicalProfile?.gender || 'unknown';
     const label = g.charAt(0).toUpperCase() + g.slice(1);
     acc[label] = (acc[label] || 0) + 1;
     return acc;
