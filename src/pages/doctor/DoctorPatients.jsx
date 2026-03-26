@@ -35,6 +35,8 @@ const initialPatients = [
 
 export default function DoctorPatients() {
   const { user } = useAuth();
+  const [patients, setPatients] = useState(initialPatients);
+  const [hospitalId, setHospitalId] = useState(null);
   const [isMocking, setIsMocking] = useState(false);
 
   React.useEffect(() => {
@@ -88,7 +90,12 @@ export default function DoctorPatients() {
   const handleAddPatient = async (e) => {
     e.preventDefault();
     if (!newName) return;
-    const hospitalId = user?.primaryHospitalId || user?.hospital_id;
+
+    // hospitalId is set in initPortal via hospitalService.getMyHospital()
+    if (!hospitalId) {
+      console.error('Hospital not loaded yet — cannot add patient');
+      return;
+    }
     
     const newPatientData = {
       full_name: newName,
@@ -106,7 +113,7 @@ export default function DoctorPatients() {
     try {
       const addedPatient = await patientService.addPatient({
         ...newPatientData,
-        hospital_id: hospitalId
+        hospital_id: hospitalId  // use state, always a valid UUID
       });
 
       const mapped = {
@@ -128,6 +135,7 @@ export default function DoctorPatients() {
     setNewAge("");
     setNewCondition("");
   };
+
 
   const removePatient = async (id) => {
     try {

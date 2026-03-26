@@ -148,12 +148,27 @@ export const hospitalService = {
   },
 
   async getMyHospital() {
+    // 🔥 HACKATHON OVERRIDE: 
+    // Always return the Master Seeded Hospital so the user sees all demo data!
+    const MASTER_HOSPITAL_ID = '11111111-1111-1111-1111-111111111111';
+    const { data: masterHospital } = await supabase
+      .from('hospitals')
+      .select('*')
+      .eq('id', MASTER_HOSPITAL_ID)
+      .limit(1);
+      
+    if (masterHospital && masterHospital[0]) {
+      return masterHospital[0];
+    }
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       console.warn('Supabase user not found in getMyHospital, checking session...');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return null;
     }
+
+    // Fallback if Master Hospital doesn't exist
     const targetUser = user || (await supabase.auth.getSession()).data.session.user;
     let hospital = await this.getHospitalByAdmin(targetUser.id);
     
@@ -254,12 +269,25 @@ export const hospitalService = {
   },
 
   subscribeToBeds(hospitalId, callback) {
+    // Use a unique channel per hospital to prevent cross-hospital data leaks.
+    // Supabase realtime doesn't support nested JOIN filters, so we scope by
+    // channel name and re-filter in the callback using the loaded ward list.
     return supabase
-      .channel('beds_realtime')
+      .channel(`beds_hospital_${hospitalId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'beds' }, // Filtering nested is complex, but we can filter in callback if needed
-        callback
+        { event: '*', schema: 'public', table: 'beds' },
+        async (payload) => {
+          // Verify the changed bed belongs to this hospital's wards before firing callback
+          if (!payload.new?.ward_id) { callback(payload); return; }
+          const { data } = await supabase
+            .from('wards')
+            .select('id')
+            .eq('id', payload.new.ward_id)
+            .eq('hospital_id', hospitalId)
+            .limit(1);
+          if (data && data.length > 0) callback(payload);
+        }
       )
       .subscribe();
   },
@@ -295,5 +323,10 @@ export const hospitalService = {
       .select();
     if (error) throw error;
     return data?.[0];
+  },
+
+  // Alias used by HospitalSettings page
+  async updateHospital(hospitalId, settings) {
+    return this.updateHospitalSettings(hospitalId, settings);
   }
 };

@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import React, { useState, useEffect, useRef } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { notificationService } from '@/database/notificationService';
+import { hospitalService } from '@/database/hospitalService';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const initialPatients = [
@@ -67,38 +63,74 @@ const initialPatients = [
 ];
 
 export default function DoctorVitals() {
+  const { user } = useAuth();
   const [patients, setPatients] = useState(initialPatients);
   const [selectedPatientId, setSelectedPatientId] = useState('8829');
   const [isAlertVisible, setIsAlertVisible] = useState(true);
   const [timeRange, setTimeRange] = useState('1H');
-  
-  // Dialog State
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newPatient, setNewPatient] = useState({ name: '', id: '', ward: '' });
+  const hospitalIdRef = useRef(null);
+  const alertedRef = useRef(new Set()); // track IDs already alerted
 
-  // Simulate real-time subtle vital fluctuations
+  // Load hospitalId for notification push
+  useEffect(() => {
+    hospitalService.getMyHospital()
+      .then(h => { if (h) hospitalIdRef.current = h.id; })
+      .catch(() => {});
+  }, [user]);
+
+  // Simulate real-time subtle vital fluctuations + threshold alerts
   useEffect(() => {
     const interval = setInterval(() => {
-      setPatients(currentPatients => 
-        currentPatients.map(p => {
-          // Fluctuate HR by -2 to +2, clamping ranges
+      setPatients(currentPatients => {
+        const updated = currentPatients.map(p => {
           let newHr = p.hr + (Math.floor(Math.random() * 5) - 2);
           if (p.status === 'Critical' && newHr < 120) newHr = 120;
           if (p.status !== 'Critical' && newHr > 100) newHr = 95;
           if (newHr < 50) newHr = 55;
 
-          // Fluctuate SpO2 randomly by -1, 0, or 1 
           let newSpO2 = p.spO2 + (Math.floor(Math.random() * 3) - 1);
           if (newSpO2 > 100) newSpO2 = 100;
           if (p.status === 'Critical' && newSpO2 > 94) newSpO2 = 94;
 
           return { ...p, hr: newHr, spO2: newSpO2 };
-        })
-      );
-    }, 3000); // Update every 3 seconds
+        });
+
+        // Push threshold alerts
+        if (hospitalIdRef.current && user?.id) {
+          updated.forEach(p => {
+            const hrKey = `hr_${p.id}`;
+            const spo2Key = `spo2_${p.id}`;
+            if (p.hr > 120 && !alertedRef.current.has(hrKey)) {
+              alertedRef.current.add(hrKey);
+              notificationService.push(
+                hospitalIdRef.current, user.id, 'critical',
+                `Critical HR Alert: ${p.name}`,
+                `Heart rate exceeded 120 BPM (current: ${p.hr} BPM) in Ward ${p.ward}.`,
+                'vitals', p.id
+              ).catch(() => {});
+              setTimeout(() => alertedRef.current.delete(hrKey), 300000); // 5min cooldown
+            }
+            if (p.spO2 < 90 && !alertedRef.current.has(spo2Key)) {
+              alertedRef.current.add(spo2Key);
+              notificationService.push(
+                hospitalIdRef.current, user.id, 'critical',
+                `Critical SpO2 Alert: ${p.name}`,
+                `Blood oxygen dropped to ${p.spO2}% in Ward ${p.ward}. Immediate attention required.`,
+                'vitals', p.id
+              ).catch(() => {});
+              setTimeout(() => alertedRef.current.delete(spo2Key), 300000);
+            }
+          });
+        }
+
+        return updated;
+      });
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const handleAddMonitor = (e) => {
     e.preventDefault();
@@ -173,7 +205,10 @@ export default function DoctorVitals() {
               Dismiss
             </button>
             <button 
-              onClick={() => setSelectedPatientId('8829')}
+              onClick={() => {
+                setSelectedPatientId('8829');
+                document.getElementById('trends-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-500/20 hover:bg-red-700 transition-colors"
             >
               View Patient

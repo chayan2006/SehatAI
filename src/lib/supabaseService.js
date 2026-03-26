@@ -112,23 +112,22 @@ export async function markNotificationRead(notifId) {
 
 // ─── Hospital Stats ───────────────────────────────────────────────────────────
 export async function getHospitalStats() {
-  // Using exact counts for large tables isn't ideal, but fine for prototype.
+  const MASTER_HOSPITAL_ID = '11111111-1111-1111-1111-111111111111';
+  
   const [
     { count: totalPatients },
     { count: totalDoctors },
-    { count: totalAppointments },
-    { count: pendingAppointments }
+    { count: pendingTriage }
   ] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'patient'),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'doctor'),
-    supabase.from('appointments').select('*', { count: 'exact', head: true }),
-    supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('patients').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID),
+    supabase.from('hospital_staff').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID).ilike('role', '%doctor%'),
+    supabase.from('triage_records').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID).eq('status', 'Pending Review'),
   ]);
 
   return {
     totalPatients: totalPatients || 0,
     totalDoctors: totalDoctors || 0,
-    totalAppointments: totalAppointments || 0,
-    pendingAppointments: pendingAppointments || 0,
+    totalAppointments: 0,
+    pendingAppointments: pendingTriage || 0,
   };
 }

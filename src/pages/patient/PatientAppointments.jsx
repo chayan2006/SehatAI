@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { sendEmailNotification } from '@/lib/emailService';
 import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isAfter, startOfDay, isSameDay, addMonths, isSameMonth } from 'date-fns';
+import { supabase } from '@/database/supabaseClient';
+import { appointmentService } from '@/database/appointmentService';
+
 
 const FACILITIES = [
     {
@@ -287,7 +290,7 @@ export default function PatientAppointments({ onNavigate }) {
                                             Consultation from <span className="font-extrabold text-slate-900 dark:text-white ml-0.5">${fac.price}</span>
                                         </div>
                                         <button 
-                                            onClick={(e) => { 
+                                            onClick={async (e) => { 
                                               e.stopPropagation(); 
                                               const newApt = {
                                                 facility: fac,
@@ -296,6 +299,40 @@ export default function PatientAppointments({ onNavigate }) {
                                               };
                                               const existing = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
                                               localStorage.setItem('sehat_appointments', JSON.stringify([...existing, newApt]));
+                                              
+                                              try {
+                                                // Get a demo patient to assign this appointment to
+                                                const { data: pts } = await supabase.from('patients').select('id, full_name').limit(1);
+                                                const patientId = pts?.[0]?.id;
+                                                
+                                                if (patientId) {
+                                                  // Convert "11:00 AM" or "02:30 PM" to 24h format for the Date object
+                                                  const timeMatch = selectedSlot.match(/(\d+):(\d+)\s+(AM|PM)/);
+                                                  let hours = 9;
+                                                  let minutes = 0;
+                                                  if (timeMatch) {
+                                                    hours = parseInt(timeMatch[1]);
+                                                    minutes = parseInt(timeMatch[2]);
+                                                    const isPM = timeMatch[3] === 'PM';
+                                                    if (isPM && hours < 12) hours += 12;
+                                                    if (!isPM && hours === 12) hours = 0;
+                                                  }
+                                                  
+                                                  const aptDate = new Date(selectedDate);
+                                                  aptDate.setHours(hours, minutes, 0, 0);
+
+                                                  // Create Appointment mapped to the demo hospital
+                                                  await appointmentService.createAppointment({
+                                                    hospital_id: '11111111-1111-1111-1111-111111111111', 
+                                                    patient_id: patientId,
+                                                    appointment_time: aptDate.toISOString(),
+                                                    status: 'pending',
+                                                    reason: 'Consultation at ' + fac.name
+                                                  });
+                                                }
+                                              } catch (err) {
+                                                console.error("Failed to sync appointment to Doctor Dashboard:", err);
+                                              }
                                               
                                               // Send Email
                                               sendEmailNotification({

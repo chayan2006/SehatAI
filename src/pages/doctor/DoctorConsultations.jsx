@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, User, Video, MapPin, Activity, Mic, Square, FileEdit, Wand2, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Video, MapPin, Activity, Mic, Square, FileEdit, Wand2, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConsultationMap } from '@/components/ConsultationMap';
+import { consultationService } from '@/database/consultationService';
+import { hospitalService } from '@/database/hospitalService';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Sheet,
   SheetContent,
@@ -20,10 +23,18 @@ const appointments = [
 ];
 
 export default function DoctorConsultations() {
+  const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [soapNote, setSoapNote] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+  const [hospitalId, setHospitalId] = useState(null);
+
+  useEffect(() => {
+    hospitalService.getMyHospital().then(h => { if (h) setHospitalId(h.id); }).catch(() => {});
+  }, [user]);
 
   const startRecording = () => {
     setIsRecording(true);
@@ -154,8 +165,36 @@ export default function DoctorConsultations() {
                     </div>
 
                     <div className="flex gap-2 pt-4">
-                      <Button className="flex-1 bg-indigo-600 text-white">Export to EMR</Button>
-                      <Button variant="outline" className="flex-1 border-slate-200">Modify</Button>
+                      <Button
+                        className="flex-1 bg-indigo-600 text-white"
+                        disabled={isSaving || savedOk}
+                        onClick={async () => {
+                          if (!soapNote) return;
+                          setIsSaving(true);
+                          try {
+                            await consultationService.createConsultation({
+                              hospital_id: hospitalId,
+                              doctor_id: user?.id,
+                              soap_subjective: soapNote.subjective,
+                              soap_objective: soapNote.objective,
+                              soap_assessment: soapNote.assessment,
+                              soap_plan: soapNote.plan,
+                              raw_transcript: transcript.join('\n'),
+                              status: 'completed',
+                            });
+                            setSavedOk(true);
+                            setTimeout(() => setSavedOk(false), 3000);
+                          } catch (err) {
+                            console.error('Save SOAP note failed:', err);
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                      >
+                        {isSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : savedOk ? <CheckCircle2 size={14} className="mr-2 text-emerald-300" /> : null}
+                        {savedOk ? 'Saved to EMR!' : 'Export to EMR'}
+                      </Button>
+                      <Button variant="outline" className="flex-1 border-slate-200" onClick={startRecording}>New Record</Button>
                     </div>
                   </div>
                 )}

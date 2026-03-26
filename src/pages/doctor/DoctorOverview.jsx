@@ -4,7 +4,7 @@ import { getHospitalStats } from "@/lib/supabaseService";
 import { Badge } from "@/components/ui/badge";
 
 export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) {
-  const [stats, setStats] = useState(propStats || {
+  const [stats, setStats] = useState({
     totalPatients: 1284,
     activeBeds: 412,
     totalBeds: 488,
@@ -21,7 +21,6 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (propStats) { setLoading(false); return; } // use passed-in stats if provided
     const loadDashboardData = async () => {
       try {
         const hospital = await hospitalService.getMyHospital();
