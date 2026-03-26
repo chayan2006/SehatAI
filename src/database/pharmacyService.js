@@ -15,10 +15,9 @@ export const pharmacyService = {
     const { data, error } = await supabase
       .from('pharmacy_inventory')
       .insert([drugData])
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data;
+    return data?.[0];
   },
 
   async getPrescriptions(hospitalId) {

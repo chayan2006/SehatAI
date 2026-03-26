@@ -12,8 +12,10 @@ import DoctorConsultations from './DoctorConsultations';
 import DoctorAmbulance from './DoctorAmbulance';
 import DoctorVitals from './DoctorVitals';
 import DoctorPharmacy from './DoctorPharmacy';
+import DoctorLab from './DoctorLab';
 import DoctorWard from './DoctorWard';
 import DoctorBilling from './DoctorBilling';
+import HospitalSettings from './HospitalSettings';
 import Settings from '../Settings';
 import AgentLogs from '../AgentLogs';
 
@@ -117,8 +119,10 @@ export default function DoctorDashboard({ onLogout }) {
             <Route path="ambulance" element={<DoctorAmbulance />} />
             <Route path="ward" element={<DoctorWard />} />
             <Route path="billing" element={<DoctorBilling />} />
+            <Route path="lab" element={<DoctorLab />} />
             <Route path="analytics" element={<AgentLogs />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="hospital-settings" element={<HospitalSettings />} />
           </Routes>
         </div>
 

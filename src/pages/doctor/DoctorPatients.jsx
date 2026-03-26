@@ -21,7 +21,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useAuth } from '@/contexts/AuthContext';
-import { patients as apiPatients } from '@/lib/api';
+import { patientService } from '@/database/patientService';
+import { hospitalService } from '@/database/hospitalService';
 
 const initialPatients = [
   { id: 1, name: 'Eleanor Vance', age: 78, status: 'Critical', lastActive: '2 mins ago', condition: 'Arrhythmia', hr: 110, bp: '145/90', riskScore: 92, aiNotes: 'Sustained tachycardia detected.', ambulanceStatus: 'En Route', risks: { sepsis: 12, cardiac: 88, respiratory: 15 } },
@@ -34,37 +35,47 @@ const initialPatients = [
 
 export default function DoctorPatients() {
   const { user } = useAuth();
-  const [patients, setPatients] = useState([]);
+  const [isMocking, setIsMocking] = useState(false);
 
   React.useEffect(() => {
-    const fetchPatients = async () => {
-      if (!user?.uid) return;
+    const initPortal = async () => {
+      if (!user?.id) return;
       try {
-        const data = await apiPatients.getPatientsForHospital(user.uid);
-        if (data && data.length > 0) {
-          // Map DB fields to component fields if necessary
-          const mapped = data.map(p => ({
+        const hospital = await hospitalService.getMyHospital();
+        if (hospital) {
+          setHospitalId(hospital.id);
+          
+          const data = await patientService.getPatients(hospital.id);
+          const realPatients = data ? data.map(p => ({
             id: p.id,
-            name: p.full_name || p.name || 'Unknown Patient',
+            name: p.full_name || 'Unknown Patient',
             age: p.age || 45,
             status: p.status || 'Stable',
-            lastActive: p.last_active || 'n/a',
-            condition: p.ward || p.condition || 'Observation',
+            lastActive: p.last_active || 'Just now',
+            condition: p.condition || 'Observation',
             hr: p.hr || 75,
             bp: p.bp || '120/80',
             riskScore: p.risk_score || (p.status === 'Critical' ? 85 : 25),
-            aiNotes: p.ai_notes || p.aiNotes || 'Vitals stable.',
+            aiNotes: p.ai_notes || 'Vitals stable.',
             risks: p.risks || { sepsis: 5, cardiac: 10, respiratory: 5 }
-          }));
-          setPatients(mapped);
-        } else {
-          setPatients([]);
+          })) : [];
+
+          // Merge: Real patients first, then mock ones (to ensure the list is always full)
+          // We filter out mock patients that might have the same Name as real ones to avoid duplicates
+          const uniqueMockPatients = initialPatients.filter(
+            mock => !realPatients.some(real => real.name === mock.name)
+          );
+
+          setPatients([...realPatients, ...uniqueMockPatients]);
+          setIsMocking(realPatients.length === 0);
         }
       } catch (err) {
-        console.error("Failed to fetch patients:", err);
+        console.error("Failed to initialize doctor portal:", err);
+        setPatients(initialPatients);
+        setIsMocking(true);
       }
     };
-    fetchPatients();
+    initPortal();
   }, [user]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -77,34 +88,42 @@ export default function DoctorPatients() {
   
   const handleAddPatient = async (e) => {
     e.preventDefault();
-    if (!newName || !user?.uid) return;
+    if (!newName) return;
     
     const newPatientData = {
       full_name: newName,
-      name: newName,
       age: parseInt(newAge) || 45,
       status: 'Stable',
       last_active: 'Just now',
       condition: newCondition || 'Under Observation',
-      ward: newCondition || 'Under Observation',
       hr: Math.floor(Math.random() * (90 - 60 + 1) + 60), 
       bp: '120/80', 
       riskScore: Math.floor(Math.random() * (40 - 10 + 1) + 10), 
       aiNotes: 'New patient added. Baseline vitals recorded.',
-      ambulanceStatus: 'None',
       risks: { sepsis: Math.floor(Math.random() * 20), cardiac: Math.floor(Math.random() * 20), respiratory: Math.floor(Math.random() * 20) }
     };
 
     try {
-      const docRef = await apiPatients.addPatientForHospital(newPatientData, user.uid);
-      setPatients([{ id: docRef.id, ...newPatientData }, ...patients]);
+      const addedPatient = await patientService.addPatient({
+        ...newPatientData,
+        hospital_id: hospitalId
+      });
+      
+      const mapped = {
+        id: addedPatient?.id || Date.now(),
+        name: newPatientData.full_name,
+        ...newPatientData
+      };
+      
+      setPatients([mapped, ...patients]);
+      if (addedPatient) setIsMocking(false);
     } catch (e) {
-      console.error('Failed to add patient', e);
+      console.error('Failed to add patient to Supabase', e);
+      // Fallback to local only for demo
+      setPatients([{ id: Date.now(), name: newName, ...newPatientData }, ...patients]);
     }
     
     setIsDialogOpen(false);
-    
-    // Reset form
     setNewName("");
     setNewAge("");
     setNewCondition("");
@@ -112,7 +131,9 @@ export default function DoctorPatients() {
 
   const removePatient = async (id) => {
     try {
-      await apiPatients.deletePatient(id);
+      if (typeof id === 'string' && id.length > 10) { // Likely a UUID
+        await patientService.deletePatient(id);
+      }
       setPatients(patients.filter(p => p.id !== id));
     } catch (e) {
       console.error('Failed to remove patient', e);

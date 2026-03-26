@@ -78,22 +78,6 @@ CREATE POLICY "Hospitals are public" ON public.hospitals FOR SELECT USING (true)
 CREATE POLICY "Admins can update their hospitals" ON public.hospitals FOR UPDATE USING (auth.uid() = admin_id);
 
 -- ------------------------------------------------------------------------------
--- 4. HOSPITAL STAFF (Mapping)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.hospital_staff (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
-  doctor_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  specialty TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  joined_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(hospital_id, doctor_id)
-);
-
-ALTER TABLE public.hospital_staff ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Staff mappings are readable by authenticated users" ON public.hospital_staff FOR SELECT USING (auth.role() = 'authenticated');
-
--- ------------------------------------------------------------------------------
 -- 5. PATIENTS
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.patients (
@@ -388,14 +372,19 @@ CREATE TRIGGER escalation_updated
 CREATE TABLE IF NOT EXISTS public.hospital_staff (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  doctor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- Optional link to user profile
   name TEXT NOT NULL,
   email TEXT UNIQUE,
   role TEXT DEFAULT 'Nurse',
+  specialty TEXT,
   department TEXT,
   status TEXT DEFAULT 'On Duty',
   avatar TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(hospital_id, doctor_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.staff_shifts (
@@ -427,6 +416,39 @@ CREATE POLICY "Shifts viewable by hospital members"
 CREATE POLICY "Shifts manageable by admins"
   ON public.staff_shifts FOR ALL
   USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+-- ==============================================================================
+-- 13. WARDS & BEDS (Infrastructure)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.wards (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  floor INTEGER,
+  type TEXT CHECK (type IN ('ICU', 'ER', 'General', 'Maternity', 'Post-Op', 'Pediatrics', 'Specialized', 'Emergency')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.beds (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  ward_id UUID REFERENCES public.wards(id) ON DELETE CASCADE,
+  bed_number TEXT NOT NULL,
+  status TEXT DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'maintenance')),
+  patient_id UUID REFERENCES public.patients(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.beds ENABLE ROW LEVEL SECURITY;
+
+-- Simple RLS for wards and beds
+CREATE POLICY "Wards viewable by authenticated users" ON public.wards FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Wards manageable by admins" ON public.wards FOR ALL USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+CREATE POLICY "Beds viewable by authenticated users" ON public.beds FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Beds manageable by admins" ON public.beds FOR ALL USING (EXISTS (SELECT 1 FROM public.wards JOIN public.hospitals ON wards.hospital_id = hospitals.id WHERE wards.id = ward_id AND admin_id = auth.uid()));
+
 
 -- ==============================================================================
 -- END OF SCRIPT

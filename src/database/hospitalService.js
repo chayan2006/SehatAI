@@ -99,6 +99,16 @@ export const hospitalService = {
     return data?.[0];
   },
 
+  async updateStaff(staffId, staffData) {
+    const { data, error } = await supabase
+      .from('hospital_staff')
+      .update(staffData)
+      .eq('id', staffId)
+      .select();
+    if (error) throw error;
+    return data?.[0];
+  },
+
   async deleteStaff(staffId) {
     const { error } = await supabase
       .from('hospital_staff')
@@ -138,9 +148,14 @@ export const hospitalService = {
   },
 
   async getMyHospital() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    let hospital = await this.getHospitalByAdmin(user.id);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.warn('Supabase user not found in getMyHospital, checking session...');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return null;
+    }
+    const targetUser = user || (await supabase.auth.getSession()).data.session.user;
+    let hospital = await this.getHospitalByAdmin(targetUser.id);
     
     // Auto-provision if missing (crucial for demo/hackathon stability)
     if (!hospital) {

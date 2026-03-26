@@ -13,6 +13,39 @@ export default function DoctorWard() {
   const [transferModal, setTransferModal] = useState(null);     // { fromBedId, patientId, wardName, bedNumber }
   const [lastError, setLastError] = useState(null);
 
+  const REPAIR_SQL = `-- Fix Ward & Bed infrastructure
+CREATE TABLE IF NOT EXISTS public.wards (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  floor INTEGER,
+  type TEXT CHECK (type IN ('ICU', 'ER', 'General', 'Maternity', 'Post-Op', 'Pediatrics', 'Specialized', 'Emergency')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.beds (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  ward_id UUID REFERENCES public.wards(id) ON DELETE CASCADE,
+  bed_number TEXT NOT NULL,
+  status TEXT DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'maintenance')),
+  patient_id UUID REFERENCES public.patients(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.beds ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+DROP POLICY IF EXISTS "Wards viewable by authenticated users" ON public.wards;
+CREATE POLICY "Wards viewable by authenticated users" ON public.wards FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Wards manageable by admins" ON public.wards;
+CREATE POLICY "Wards manageable by admins" ON public.wards FOR ALL USING (EXISTS (SELECT 1 FROM public.hospitals WHERE id = hospital_id AND admin_id = auth.uid()));
+
+DROP POLICY IF EXISTS "Beds viewable by authenticated users" ON public.beds;
+CREATE POLICY "Beds viewable by authenticated users" ON public.beds FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Beds manageable by admins" ON public.beds;
+CREATE POLICY "Beds manageable by admins" ON public.beds FOR ALL USING (EXISTS (SELECT 1 FROM public.wards JOIN public.hospitals ON wards.hospital_id = hospitals.id WHERE wards.id = ward_id AND admin_id = auth.uid()));`;
+
   useEffect(() => {
     loadData();
 
@@ -49,15 +82,42 @@ export default function DoctorWard() {
       setWards(wardData);
       setPatients(patientData);
     } catch (err) {
-      console.error(err);
+      console.error("Ward Sync Error:", err);
+      setLastError(err.message || String(err));
       addToast('Failed to sync ward data', 'error');
     } finally {
       setLoading(false);
     }
   };
 
+    const MOCK_WARDS = [
+    {
+      id: 'mock-icu',
+      name: 'ICU Main Unit',
+      beds: [
+        { id: 'm1', bed_number: '101', status: 'occupied', patients: { full_name: 'Elena Rodriguez' } },
+        { id: 'm2', bed_number: '102', status: 'available' },
+        { id: 'm3', bed_number: '103', status: 'occupied', patients: { full_name: 'Robert Fox' } },
+        { id: 'm4', bed_number: '104', status: 'available' },
+      ]
+    },
+    {
+      id: 'mock-gen',
+      name: 'General Ward A',
+      beds: [
+        { id: 'm5', bed_number: '201', status: 'available' },
+        { id: 'm6', bed_number: '202', status: 'occupied', patients: { full_name: 'Mark Thompson' } },
+        { id: 'm7', bed_number: '203', status: 'available' },
+        { id: 'm8', bed_number: '204', status: 'available' },
+      ]
+    }
+  ];
+
+  const displayWards = wards.length > 0 ? wards : MOCK_WARDS;
+  const isMock = wards.length === 0;
+
   // Flatten all beds for stats
-  const allBeds = wards.flatMap(w => w.beds || []);
+  const allBeds = displayWards.flatMap(w => w.beds || []);
   const stats = {
     total: allBeds.length,
     available: allBeds.filter(b => b.status === 'available').length,
@@ -66,10 +126,15 @@ export default function DoctorWard() {
   };
 
   const handleBedClick = (wardId, bedId) => {
+    if (isMock) {
+      addToast('System is in Demo Mode. Use "Quick Setup" to enable real bed management.', 'info');
+      return;
+    }
     setAssignmentModal({ wardId, bedId });
   };
 
   const assignPatientToBed = async (bedId, patientId, patientName) => {
+    if (isMock) return;
     setIsProcessing(true);
     const lid = addToast(`Assigning Bed to ${patientName}...`, 'loading', 3000);
     setLastError(null);
@@ -91,6 +156,7 @@ export default function DoctorWard() {
   };
 
   const handleTransfer = async (fromBedId, toBedId, patientId, patientName) => {
+    if (isMock) return;
     setIsProcessing(true);
     const lid = addToast(`Transferring ${patientName}...`, 'loading', 3000);
     try {
@@ -112,6 +178,10 @@ export default function DoctorWard() {
   };
 
   const dischargePatient = async (wardId, bedId, patientName) => {
+    if (isMock) {
+      addToast('Discharge simulated (Demo Mode)', 'success');
+      return;
+    }
     setIsProcessing(true);
     const lid = addToast(`Processing discharge for ${patientName}...`, 'loading', 3000);
     try {
@@ -132,7 +202,9 @@ export default function DoctorWard() {
     const lid = addToast('Bootstrapping Clinic Infrastructure...', 'loading', 3000);
     try {
       const hospital = await hospitalService.getMyHospital();
-      if (!hospital) throw new Error('Hospital context not found.');
+      if (!hospital) {
+        throw new Error('Hospital context not found. Please ensure you are logged in and your clinic is registered.');
+      }
       
       await hospitalService.seedHospitalInfrastructure(hospital.id);
       await loadData();
@@ -150,24 +222,8 @@ export default function DoctorWard() {
   };
 
   const repairDatabase = () => {
-    const sqlToRun = `-- ⚡ INFRASTRUCTURE REPAIR SCRIPT ⚡
--- Run this to fix missing "type" column and permissions for Ward/Bed management
-
--- 1. ADD missing column
-ALTER TABLE public.wards ADD COLUMN IF NOT EXISTS type TEXT;
-
--- 2. ENSURE Permissions
-DO $$
-DECLARE t TEXT;
-BEGIN
-    FOR t IN ('wards', 'beds') LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-        EXECUTE format('DROP POLICY IF EXISTS "Global Demo Access" ON public.%I', t);
-        EXECUTE format('CREATE POLICY "Global Demo Access" ON public.%I FOR ALL USING (true) WITH CHECK (true)', t);
-    END LOOP;
-END $$;
-`;
-    setLastError(`REPAIR SQL: Copy this and run in Supabase SQL Editor:\n\n${sqlToRun}`);
+    navigator.clipboard.writeText(REPAIR_SQL);
+    addToast('Supreme Repair SQL copied to clipboard!', 'success');
   };
 
   if (loading) {
@@ -184,9 +240,26 @@ END $$;
       <Toast toasts={toasts} removeToast={removeToast} />
       
       {/* Header */}
-      <div>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Hospital Ward Management</h2>
-        <p className="text-slate-500 mt-1">Real-time occupancy tracking across ICU, General, and Special care units</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            Hospital Ward Management
+            {isMock && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-600 uppercase font-black">Demo Mode</span>
+            )}
+          </h2>
+          <p className="text-slate-500 mt-1">Real-time occupancy tracking across ICU, General, and Special care units</p>
+        </div>
+        
+        {isMock && (
+          <button 
+            onClick={handleQuickSetup}
+            disabled={isProcessing}
+            className="px-6 py-2.5 bg-[#00b289] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+          >
+            <Activity size={14} /> Quick Setup Infrastructure
+          </button>
+        )}
       </div>
 
       {/* Summary Grid */}
@@ -211,45 +284,38 @@ END $$;
         ))}
       </div>
 
-      {/* Wards Display */}
-      {wards.length === 0 ? (
-        <div className="py-20 bg-white rounded-2xl border border-dashed border-slate-200 flex flex-col items-center gap-4 text-center">
-          <Building2 size={48} className="text-slate-200" />
-          <div className="max-w-md">
-            <p className="font-bold text-slate-500 font-black uppercase tracking-widest text-lg">No wards configured</p>
-            <p className="text-sm text-slate-400 mb-6">Initialize your clinic with default ICU and General Medical wards.</p>
-            
-            {lastError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-left">
-                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                   <AlertTriangle size={12} /> Setup Error
-                </p>
-                <div className="max-h-40 overflow-y-auto">
-                    <pre className="text-[10px] font-mono whitespace-pre-wrap text-red-800 break-all bg-white/50 p-2 rounded border border-red-50/50">
-                        {lastError}
-                    </pre>
-                </div>
-                {lastError.toLowerCase().includes('column "type" does not exist') || lastError.toLowerCase().includes('type') ? (
-                  <button 
+      {/* Setup Error Box (Always show if error exists) */}
+      {lastError && (
+        <div className="p-6 bg-red-50 border border-red-100 rounded-2xl animate-in slide-in-from-top-4 duration-500">
+          <div className="flex items-start gap-4">
+             <div className="p-3 bg-red-100 rounded-2xl text-red-600">
+                <AlertTriangle size={24} />
+             </div>
+             <div className="flex-1">
+                <h3 className="text-lg font-black text-red-900 mb-1">Database Sync Error</h3>
+                <p className="text-sm font-medium text-red-600 mb-4">{lastError}</p>
+                <div className="flex flex-wrap gap-3">
+                   <button 
                     onClick={repairDatabase}
-                    className="mt-3 w-full py-2 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 animate-pulse"
-                  >
-                    <Activity size={12} /> Get Repair SQL
-                  </button>
-                ) : null}
-              </div>
-            )}
-
-            <button 
-              onClick={handleQuickSetup}
-              disabled={isProcessing}
-              className="px-8 py-3 bg-[#00b289] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 disabled:opacity-50"
-            >
-              Quick Setup Infrastructure
-            </button>
+                    className="bg-white border border-red-200 text-red-600 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all flex items-center gap-2 shadow-sm"
+                   >
+                     <Activity size={14} /> Copy Supreme Repair SQL
+                   </button>
+                   <button 
+                    onClick={loadData}
+                    className="bg-red-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm"
+                   >
+                     <Clock size={14} /> Retry Sync
+                   </button>
+                   <button onClick={() => setLastError(null)} className="px-5 py-2.5 text-[10px] text-slate-400 uppercase font-black hover:text-slate-600 transition-colors">Dismiss</button>
+                </div>
+             </div>
           </div>
         </div>
-      ) : wards.map(ward => (
+      )}
+
+      {/* Wards Display */}
+      {displayWards.map(ward => (
         <div key={ward.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
           <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
@@ -288,7 +354,10 @@ END $$;
                     <div className="pt-4 border-t border-slate-50 flex gap-2">
                        <button 
                          disabled={isProcessing}
-                         onClick={() => setTransferModal({ fromBedId: bed.id, patientId: p.id, wardName: ward.name, bedNumber: bed.bed_number, patientName: p.full_name })}
+                         onClick={() => {
+                           if (isMock) { addToast('Transfer simulated (Demo Mode)', 'info'); return; }
+                           setTransferModal({ fromBedId: bed.id, patientId: p.id, wardName: ward.name, bedNumber: bed.bed_number, patientName: p.full_name });
+                         }}
                          className="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all border border-indigo-100"
                        >
                          Transfer

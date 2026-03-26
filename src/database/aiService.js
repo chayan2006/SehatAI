@@ -1,12 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from './supabaseClient';
 
 // Initialize the Gemini Client
-// WARNING: In production, API keys should be called from a secure backend, not exposed in the frontend. 
-// For this Hackathon demo, we are using Vite Environment Variables.
-const ai = new GoogleGenAI({ 
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'MISSING_API_KEY' 
-});
+const ai = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || 'MISSING_API_KEY');
 
 export const aiService = {
   

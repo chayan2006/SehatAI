@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS patients (
   emergency_contact_phone   VARCHAR(30),
   insurance_provider        VARCHAR(255),
   insurance_id              VARCHAR(100),
+  hospital_id               UUID REFERENCES hospitals(id),
   created_at                TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -112,7 +113,8 @@ CREATE TABLE IF NOT EXISTS wards (
   floor         INTEGER,
   total_beds    INTEGER NOT NULL DEFAULT 0,
   available_beds INTEGER NOT NULL DEFAULT 0,
-  type          VARCHAR(30) CHECK (type IN ('ICU', 'ER', 'General', 'Maternity', 'Post-Op', 'Pediatrics')),
+  hospital_id    UUID REFERENCES hospitals(id),
+  type          VARCHAR(30) CHECK (type IN ('ICU', 'ER', 'General', 'Maternity', 'Post-Op', 'Pediatrics', 'Specialized', 'Emergency')),
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
