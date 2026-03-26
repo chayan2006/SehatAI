@@ -47,9 +47,10 @@ export default function App() {
     }
   }, [user, loading, location.pathname, navigate]);
 
-  const handleLoginSuccess = (selectedRole) => {
+  const handleLoginSuccess = (selectedRole, name) => {
     if (selectedRole === 'gateway_back') { navigate('/'); return; }
     if (selectedRole === 'admin') { navigate('/admin/login'); return; }
+    if (name) localStorage.setItem('sehat_user_name', name);
     navigate(`/${selectedRole}/dashboard`);
   };
 

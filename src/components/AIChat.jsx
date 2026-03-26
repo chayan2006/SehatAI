@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, X, Loader2, MessageCircle, Mic, MicOff, Image as ImageIcon, Paperclip } from 'lucide-react';
+import { Bot, Send, X, Loader2, MessageCircle, Mic, MicOff, Image as ImageIcon } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 /**
  * Reusable AI Chat Component for SehatAI.
@@ -127,7 +129,11 @@ export default function AIChat({
                 image_data: currentImage
             });
 
-            const aiMsg = { role: 'assistant', text: response.output, timestamp: Date.now() };
+            const aiMsg = { 
+                role: 'assistant', 
+                text: response.output.replace(/<function=.*?<\/function>|<thought>.*?<\/thought>/gs, '').trim(), 
+                timestamp: Date.now() 
+            };
             setMessages(prev => [...prev, aiMsg]);
 
             // TTS
@@ -188,7 +194,17 @@ export default function AIChat({
                                     boxShadow: msg.role === 'human' ? '0 4px 12px ' + themeColor + '30' : '0 2px 5px rgba(0,0,0,0.05)',
                                     border: msg.role === 'human' ? 'none' : '1px solid #e2e8f0'
                                 }}>
-                                    {msg.text}
+                                    <ReactMarkdown 
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            p: ({node, ...props}) => <p style={{ margin: 0 }} {...props} />,
+                                            strong: ({node, ...props}) => <strong style={{ fontWeight: 800 }} {...props} />,
+                                            ul: ({node, ...props}) => <ul style={{ paddingLeft: 20, margin: '8px 0' }} {...props} />,
+                                            li: ({node, ...props}) => <li style={{ marginBottom: 4 }} {...props} />,
+                                        }}
+                                    >
+                                        {msg.text}
+                                    </ReactMarkdown>
                                 </div>
                             </div>
                         ))}
