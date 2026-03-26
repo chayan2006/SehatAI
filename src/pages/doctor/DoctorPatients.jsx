@@ -38,9 +38,14 @@ export default function DoctorPatients() {
 
   React.useEffect(() => {
     const fetchPatients = async () => {
-      if (!user?.uid) return;
+      if (!user?.id) return;
+      const hospitalId = user.primaryHospitalId || user.hospital_id;
+      if (!hospitalId) {
+        setPatients([]);
+        return;
+      }
       try {
-        const data = await apiPatients.getPatientsForHospital(user.uid);
+        const data = await apiPatients.getPatientsForHospital(hospitalId);
         if (data && data.length > 0) {
           // Map DB fields to component fields if necessary
           const mapped = data.map(p => ({
@@ -77,7 +82,8 @@ export default function DoctorPatients() {
   
   const handleAddPatient = async (e) => {
     e.preventDefault();
-    if (!newName || !user?.uid) return;
+    const hospitalId = user?.primaryHospitalId || user?.hospital_id;
+    if (!newName || !hospitalId) return;
     
     const newPatientData = {
       full_name: newName,
@@ -96,7 +102,7 @@ export default function DoctorPatients() {
     };
 
     try {
-      const docRef = await apiPatients.addPatientForHospital(newPatientData, user.uid);
+      const docRef = await apiPatients.addPatientForHospital(newPatientData, hospitalId);
       setPatients([{ id: docRef.id, ...newPatientData }, ...patients]);
     } catch (e) {
       console.error('Failed to add patient', e);

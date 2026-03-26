@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendOtpEmail } from "@/lib/emailService";
+import { HOSPITAL_LIST } from "@/lib/hospitalConfig";
 
 // ── Helper: generate a random 6-digit OTP ────────────────────────────────────
 // TODO: Replace with dynamic OTP generation when email delivery is configured
@@ -28,6 +29,10 @@ export default function PortalLogin({ onLogin }) {
     gender: "",
     city: "",
     consent: false,
+    hospital_id: "",
+    weight: "",
+    height: "",
+    recent_injury: "",
   });
 
   // ── OTP verification state ───────────────────────────────────────────────────
@@ -66,11 +71,18 @@ export default function PortalLogin({ onLogin }) {
 
   // ── Google Login ──────────────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
+    if (role === "Hospital" && !formData.hospital_id && mode === "signup") {
+      setError("Please select a valid hospital first.");
+      return;
+    }
     setError("");
     setLoading(true);
     const internalRole = getInternalRole(role);
     try {
-      await loginWithGoogle(internalRole);
+      const extraData = role === "Hospital" && formData.hospital_id 
+        ? { hospital_id: formData.hospital_id, full_name: formData.full_name } 
+        : {};
+      await loginWithGoogle(internalRole, extraData);
       onLogin(internalRole);
     } catch (err) {
       setError(err.message || "Google authentication failed.");
@@ -168,9 +180,14 @@ export default function PortalLogin({ onLogin }) {
           gender: formData.gender,
           city: formData.city,
           consent: formData.consent,
+          weight: formData.weight,
+          height: formData.height,
+          recent_injury: formData.recent_injury,
         });
-      } else {
-        // Doctor/other non-patient signups
+      } else if (internalRole === "doctor") {
+        Object.assign(registerData, {
+          hospital_id: formData.hospital_id,
+        });
       }
 
       await register(registerData);
@@ -435,21 +452,46 @@ export default function PortalLogin({ onLogin }) {
                     <>
                       {/* ── SIGN UP fields: Patient full grid ── */}
                       <div className={role === "Patient" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4"}>
-                        {/* Full Name */}
-                        <div className="flex flex-col gap-2">
-                          <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">person</span>Full Name
-                          </label>
-                          <input
-                            name="full_name"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                            placeholder="John Doe"
-                            type="text"
-                            required
-                            value={formData.full_name}
-                            onChange={handleChange}
-                          />
-                        </div>
+                        {/* Hospital Dropdown OR Full Name */}
+                        {role === "Hospital" ? (
+                          <div className="flex flex-col gap-2">
+                            <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                              <span className="material-symbols-outlined text-lg">local_hospital</span>Select Hospital
+                            </label>
+                            <select
+                              name="hospital_id"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                              required
+                              value={formData.hospital_id}
+                              onChange={(e) => {
+                                const h_id = e.target.value;
+                                const h_name = HOSPITAL_LIST.find(h => h.id === h_id)?.name || "";
+                                setFormData(prev => ({ ...prev, hospital_id: h_id, full_name: h_name }));
+                                setError("");
+                              }}
+                            >
+                              <option value="">Choose a Demo Hospital</option>
+                              {HOSPITAL_LIST.map((h) => (
+                                <option key={h.id} value={h.id}>{h.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                              <span className="material-symbols-outlined text-lg">person</span>Full Name
+                            </label>
+                            <input
+                              name="full_name"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                              placeholder="John Doe"
+                              type="text"
+                              required
+                              value={formData.full_name}
+                              onChange={handleChange}
+                            />
+                          </div>
+                        )}
 
                         {role === "Patient" && (
                           <>
@@ -520,6 +562,50 @@ export default function PortalLogin({ onLogin }) {
                                 value={formData.phone}
                                 onChange={handleChange}
                               />
+                            </div>
+
+                            {/* Weight & Height */}
+                            <div className="flex flex-col gap-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">monitor_weight</span>Weight (kg)
+                              </label>
+                              <input
+                                name="weight"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                placeholder="e.g. 70"
+                                type="number"
+                                required
+                                value={formData.weight}
+                                onChange={handleChange}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">height</span>Height (cm)
+                              </label>
+                              <input
+                                name="height"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                placeholder="e.g. 175"
+                                type="number"
+                                required
+                                value={formData.height}
+                                onChange={handleChange}
+                              />
+                            </div>
+
+                            {/* Recent Medical/Injury Report Context */}
+                            <div className="flex flex-col gap-2 md:col-span-2">
+                              <label className="text-slate-700 text-sm font-semibold flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">assignment</span>Recent Injury / Medical Report Details
+                              </label>
+                              <textarea
+                                name="recent_injury"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none min-h-[80px]"
+                                placeholder="Describe any recent injuries or relevant medical history here..."
+                                value={formData.recent_injury}
+                                onChange={handleChange}
+                              ></textarea>
                             </div>
 
                             {/* Email */}

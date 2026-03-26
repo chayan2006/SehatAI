@@ -4,34 +4,54 @@ import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isAf
 
 const FACILITIES = [
     {
-        id: 1,
-        name: "Saint Mary's Specialist Hospital",
+        id: 'lks',
+        name: "Lok Kalyan Samiti (LKS) Hospital",
         image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80",
-        rating: 4.9,
-        distance: "2.4 miles away",
-        location: "Marylebone",
-        tags: ["Cardiology", "Neurology", "24/7 ER"],
-        price: 120
+        rating: 4.8,
+        distance: "0.5 miles away",
+        location: "Vishnu Digamber Marg, ITO",
+        tags: ["General Care", "Specialized Care"],
+        price: 50
     },
     {
-        id: 2,
-        name: "Central City Medical Clinic",
+        id: 'gbpant',
+        name: "G.B. Pant Hospital",
         image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&q=80",
-        rating: 4.5,
-        distance: "0.8 miles away",
-        location: "Soho Square",
-        tags: ["General Physician", "Diagnostics"],
-        price: 45
+        rating: 4.9,
+        distance: "1.5 miles away",
+        location: "Maulana Azad Medical College Campus",
+        tags: ["Cardiology", "Neurology", "GI Care"],
+        price: 70
     },
     {
-        id: 3,
-        name: "Regents Health & Research Center",
+        id: 'maulana_azad',
+        name: "Maulana Azad Dental College",
         image: "https://images.unsplash.com/photo-1538108149393-cebb47acdd4e?w=600&q=80",
+        rating: 4.6,
+        distance: "1.2 miles away",
+        location: "Bahadur Shah Zafar Marg",
+        tags: ["Dental", "Oral Health"],
+        price: 40
+    },
+    {
+        id: 'shroffs',
+        name: "Dr. Shroff's Charity Eye Hospital",
+        image: "https://plus.unsplash.com/premium_photo-1661766718556-13c2efac1388?q=80&w=600&auto=format&fit=crop",
+        rating: 4.8,
+        distance: "1.8 miles away",
+        location: "Babar Road, Bengali Market",
+        tags: ["Ophthalmology", "ENT"],
+        price: 60
+    },
+    {
+        id: 'dhli',
+        name: "Delhi Heart and Lungs Institute (DHLI)",
+        image: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?w=600&q=80",
         rating: 4.7,
-        distance: "3.1 miles away",
-        location: "Camden",
-        tags: ["Orthopedic", "Pediatric"],
-        price: 95
+        distance: "2.1 miles away",
+        location: "Panchkuian Road, RK Ashram",
+        tags: ["Cardiology", "Pulmonology"],
+        price: 90
     }
 ];
 
@@ -40,7 +60,7 @@ export default function PatientAppointments({ onNavigate }) {
     const [baseDate, setBaseDate] = useState(today);
     const [selectedDate, setSelectedDate] = useState(today);
     const [selectedSlot, setSelectedSlot] = useState('11:00 AM');
-    const [selectedFacilityId, setSelectedFacilityId] = useState(1);
+    const [selectedFacilityId, setSelectedFacilityId] = useState('lks');
     const [specialty, setSpecialty] = useState('');
     const [distance, setDistance] = useState('');
     const [rating, setRating] = useState('');
@@ -85,17 +105,17 @@ export default function PatientAppointments({ onNavigate }) {
         const day = selectedDate.getDay();
         
         // Sunday
-        if (day === 0) return selectedFacilityId === 1 ? ['10:00 AM', '11:30 AM'] : [];
+        if (day === 0) return selectedFacilityId === 'lks' ? ['10:00 AM', '11:30 AM'] : [];
         
-        if (selectedFacilityId === 1) { // Saint Mary's
+        if (selectedFacilityId === 'lks' || selectedFacilityId === 'gbpant') { 
             return day % 2 === 0 
                 ? ['09:00 AM', '10:30 AM', '11:00 AM', '01:30 PM', '03:00 PM', '04:30 PM']
                 : ['08:30 AM', '09:45 AM', '11:15 AM', '02:00 PM', '05:00 PM'];
-        } else if (selectedFacilityId === 2) { // Central City
+        } else if (selectedFacilityId === 'dhli' || selectedFacilityId === 'maulana_azad') {
             return day % 2 === 0
                 ? ['08:00 AM', '09:15 AM', '12:00 PM', '03:45 PM', '06:00 PM']
                 : ['07:30 AM', '10:00 AM', '01:00 PM', '04:30 PM'];
-        } else { // Regents
+        } else {
             return day === 6 // Saturday
                 ? ['09:00 AM', '10:00 AM', '11:00 AM']
                 : ['10:00 AM', '11:30 AM', '02:00 PM', '04:15 PM', '05:30 PM'];

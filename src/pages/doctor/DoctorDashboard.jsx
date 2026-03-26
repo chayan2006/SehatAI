@@ -19,6 +19,9 @@ import AgentLogs from '../AgentLogs';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getHospitalStats } from '@/lib/supabaseService';
+import { getHospital } from '@/lib/hospitalConfig';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function DoctorDashboard({ onLogout }) {
   const navigate = useNavigate();
@@ -26,6 +29,7 @@ export default function DoctorDashboard({ onLogout }) {
   const { user } = useAuth();
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [stats, setStats] = useState({ totalPatients: 0, activeEmergencies: 0, occupancy: '0%' });
+  const [hospitalInfo, setHospitalInfo] = useState(null);
   const userName = localStorage.getItem('sehat_user_name') || user?.full_name || "Dr. Sarah Chen";
 
   // Extract current tab from URL
@@ -57,12 +61,29 @@ export default function DoctorDashboard({ onLogout }) {
       }
     };
 
+    const fetchHospitalInfo = async () => {
+      if (!user?.id) return;
+      try {
+        const snap = await getDoc(doc(db, 'users', user.id));
+        if (snap.exists()) {
+          const hId = snap.data().primaryHospitalId;
+          const h = getHospital(hId);
+          if (h) setHospitalInfo(h);
+        }
+      } catch (err) {
+        console.error("Failed to load hospital metadata", err);
+      }
+    };
+
     setupAgent();
     fetchStats();
-  }, []);
+    fetchHospitalInfo();
+  }, [user]);
+
+  const dashboardStyle = hospitalInfo ? { '--color-primary': hospitalInfo.theme.primary } : {};
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-on-surface font-body selection:bg-primary/30 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-background text-on-surface font-body selection:bg-primary/30 dark:bg-slate-950" style={dashboardStyle}>
       <DoctorSidebar activeTab={activeTab} onTabChange={(tab) => navigate(`/doctor/${tab}`)} />
       
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-64">
@@ -92,7 +113,7 @@ export default function DoctorDashboard({ onLogout }) {
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onLogout}>
               <div className="text-right hidden sm:block">
                 <p className="text-xs font-black text-slate-900 dark:text-white leading-none">{userName}</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-tighter mt-1">Chief Medical Officer</p>
+                <p className="text-[10px] text-primary font-black uppercase tracking-tighter mt-1">{hospitalInfo ? hospitalInfo.name : "Chief Medical Officer"}</p>
               </div>
               <img 
                 alt="Admin Profile" 
@@ -106,7 +127,7 @@ export default function DoctorDashboard({ onLogout }) {
         <div className="flex-1 overflow-y-auto no-scrollbar">
           <Routes>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DoctorOverview />} />
+            <Route path="dashboard" element={<DoctorOverview hospitalInfo={hospitalInfo} stats={stats} />} />
             <Route path="triage" element={<DoctorTriage />} />
             <Route path="emergency" element={<DoctorTriage />} />
             <Route path="pharmacy" element={<DoctorPharmacy />} />
