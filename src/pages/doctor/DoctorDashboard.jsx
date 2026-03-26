@@ -18,7 +18,7 @@ import Settings from '../Settings';
 import AgentLogs from '../AgentLogs';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { getHospitalStats } from '@/lib/firestoreService';
+import { getHospitalStats } from '@/lib/supabaseService';
 
 export default function DoctorDashboard({ onLogout }) {
   const navigate = useNavigate();

@@ -10,7 +10,7 @@ import { z } from "zod";
 import {
   getAllUsers, getHospitalStats, getAllAppointments,
   sendNotificationToUser, getPatients, getDoctors
-} from './firestoreService.js';
+} from './supabaseService.js';
 
 // ─── Image analysis (Gemini direct) ──────────────────────────────────────────
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -21,7 +21,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
   const [, mimeType, base64Data] = match;
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,6 +35,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
       }
     );
     const data = await res.json();
+    if (data.error) return `Gemini API Error: ${data.error.message}`;
     return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Could not analyze.";
   } catch (e) { return "Analysis error: " + e.message; }
 }

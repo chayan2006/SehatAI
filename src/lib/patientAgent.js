@@ -8,6 +8,7 @@ import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { sendEmailNotification } from './emailService.js';
+import { getAppointments, createAppointment } from './supabaseService.js';
 
 // ─── Tool implementations ──────────────────────────────────────────────────────
 
@@ -21,10 +22,10 @@ const tools = [
   new DynamicStructuredTool({
     name: "get_my_appointments",
     description: "Retrieves upcoming medical checkups and consultations.",
-    schema: z.preprocess((v) => v === null ? {} : v, z.object({})),
-    func: async () => {
-      const saved = localStorage.getItem('sehat_appointments');
-      return saved ? saved : "You have no upcoming appointments.";
+    schema: z.object({ patient_uid: z.string().describe("The user's Firebase/Supabase UID.") }),
+    func: async ({ patient_uid }) => {
+      const apts = await getAppointments(patient_uid);
+      return apts.length ? JSON.stringify(apts) : "You have no upcoming appointments.";
     },
   }),
   new DynamicStructuredTool({
@@ -32,20 +33,15 @@ const tools = [
     description: "Book, reschedule, or cancel a medical appointment.",
     schema: z.object({
       action: z.enum(["book", "cancel", "reschedule"]),
+      patient_uid: z.string().describe("The user's Firebase/Supabase UID."),
       facility_name: z.string(),
       date: z.string(),
       time: z.string(),
     }),
-    func: async ({ action, facility_name, date, time }) => {
-      let apts = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
-      if (action === "cancel") {
-        apts = apts.filter(a => !(a.date?.includes(date) || a.facility?.name?.toLowerCase().includes(facility_name.toLowerCase())));
-        localStorage.setItem('sehat_appointments', JSON.stringify(apts));
-        return `Cancelled the appointment at ${facility_name}.`;
-      } else if (action === "book") {
-        apts.push({ facility: { name: facility_name, location: "Agent Booked" }, date, slot: time });
-        localStorage.setItem('sehat_appointments', JSON.stringify(apts));
-        return `Booked appointment at ${facility_name} on ${date} at ${time}.`;
+    func: async ({ action, patient_uid, facility_name, date, time }) => {
+      if (action === "book") {
+        const id = await createAppointment({ patient_uid, facility_name, date, time });
+        return id ? `Booked appointment at ${facility_name} on ${date} at ${time}.` : "Failed to book appointment.";
       }
       return "Action not supported yet.";
     },
@@ -117,7 +113,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,6 +129,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
       }
     );
     const data = await res.json();
+    if (data.error) return `Gemini API Error: ${data.error.message}`;
     return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Could not analyze the image.";
   } catch (e) {
     return "Image analysis error: " + e.message;

@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserProfile } from '@/lib/firestoreService';
+import { updateUserProfile } from '@/lib/supabaseService';
+import { doctors, patients } from '@/lib/api';
 
 export default function PatientSettings() {
   const { user } = useAuth();
@@ -12,20 +13,37 @@ export default function PatientSettings() {
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [notifications, setNotifications] = useState({ email: true, sms: false, app: true });
+  
+  const [hospitals, setHospitals] = useState([]);
+  const [selectedHospital, setSelectedHospital] = useState('');
 
   // Populate fields from the real authenticated user
   useEffect(() => {
     if (user) {
       setFullName(user.full_name || '');
       setPhone(user.phone || '');
+      setSelectedHospital(user.hospital_uid || '');
     }
+    
+    const fetchHospitals = async () => {
+      try {
+        const docs = await doctors.list();
+        setHospitals(docs);
+      } catch (e) {
+        console.error('Failed to fetch hospitals:', e);
+      }
+    };
+    fetchHospitals();
   }, [user]);
 
   const handleSave = async () => {
     if (!user?.id) return;
     setSaving(true);
     try {
-      await updateUserProfile(user.id, { full_name: fullName, phone });
+      await updateUserProfile(user.id, { full_name: fullName, phone, hospital_uid: selectedHospital });
+      if (selectedHospital) {
+        await patients.linkHospital(selectedHospital);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -85,6 +103,39 @@ export default function PatientSettings() {
             {saving ? 'Saving...' : 'Save Profile Changes'}
           </Button>
           {saved && <span className="text-sm font-semibold text-green-600">✓ Saved successfully!</span>}
+        </CardFooter>
+      </Card>
+
+      <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <CardHeader>
+          <CardTitle className="text-xl">Healthcare Provider</CardTitle>
+          <CardDescription>Select your primary hospital or clinic for data synchronization and telemetry.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Primary Hospital / Clinic</label>
+            <select
+              value={selectedHospital}
+              onChange={(e) => setSelectedHospital(e.target.value)}
+              className="w-full max-w-md bg-transparent border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary text-slate-900 dark:text-white"
+            >
+              <option value="">-- Select a facility --</option>
+              {hospitals.map(h => (
+                <option key={h.id} value={h.id}>
+                  {h.full_name || 'Unnamed Hospital'} ({h.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+        <CardFooter className="border-t border-slate-100 dark:border-slate-800 px-6 py-4 gap-3">
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-primary hover:bg-primary/90 text-white font-bold"
+          >
+            {saving ? 'Linking...' : 'Link Provider'}
+          </Button>
         </CardFooter>
       </Card>
 

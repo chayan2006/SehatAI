@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
 import AIChat from '@/components/AIChat';
-import { getHospitalStats } from '@/lib/firestoreService';
+import { getHospitalStats } from '@/lib/supabaseService';
 
 import AnalyticsView from '../components/admin/AnalyticsView';
 import ResourcesView from '../components/admin/ResourcesView';

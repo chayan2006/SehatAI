@@ -8,7 +8,7 @@
 
 import { db, auth } from './firebase';
 import { 
-  collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, 
+  collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit 
 } from 'firebase/firestore';
 
@@ -67,6 +67,32 @@ export const patients = {
     return addDoc(collection(db, 'nutrition_logs'), {
       ...data, patient_uid: uid, logged_at: new Date().toISOString()
     });
+  },
+
+  linkHospital: async (hospitalUid) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) throw new Error('Not authenticated');
+    return updateDoc(doc(db, 'users', uid), { hospital_uid: hospitalUid });
+  },
+
+  getPatientsForHospital: async (hospitalUid) => {
+    if (!hospitalUid) return [];
+    const q = query(collection(db, 'users'), where('role', '==', 'patient'), where('hospital_uid', '==', hospitalUid));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  addPatientForHospital: async (data, hospitalUid) => {
+    return addDoc(collection(db, 'users'), {
+      ...data,
+      role: 'patient',
+      hospital_uid: hospitalUid,
+      created_at: new Date().toISOString()
+    });
+  },
+
+  deletePatient: async (patientId) => {
+    return deleteDoc(doc(db, 'users', patientId));
   }
 };
 

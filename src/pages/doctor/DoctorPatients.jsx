@@ -20,7 +20,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { db } from '@/lib/database';
+import { useAuth } from '@/contexts/AuthContext';
+import { patients as apiPatients } from '@/lib/api';
 
 const initialPatients = [
   { id: 1, name: 'Eleanor Vance', age: 78, status: 'Critical', lastActive: '2 mins ago', condition: 'Arrhythmia', hr: 110, bp: '145/90', riskScore: 92, aiNotes: 'Sustained tachycardia detected.', ambulanceStatus: 'En Route', risks: { sepsis: 12, cardiac: 88, respiratory: 15 } },
@@ -32,35 +33,39 @@ const initialPatients = [
 ];
 
 export default function DoctorPatients() {
-  const [patients, setPatients] = useState(initialPatients);
+  const { user } = useAuth();
+  const [patients, setPatients] = useState([]);
 
   React.useEffect(() => {
     const fetchPatients = async () => {
+      if (!user?.uid) return;
       try {
-        const data = await db.getPatients();
+        const data = await apiPatients.getPatientsForHospital(user.uid);
         if (data && data.length > 0) {
           // Map DB fields to component fields if necessary
           const mapped = data.map(p => ({
             id: p.id,
-            name: p.name,
-            age: p.age,
-            status: p.status,
+            name: p.full_name || p.name || 'Unknown Patient',
+            age: p.age || 45,
+            status: p.status || 'Stable',
             lastActive: p.last_active || 'n/a',
-            condition: p.ward || 'Observation',
-            hr: 75,
-            bp: '120/80',
+            condition: p.ward || p.condition || 'Observation',
+            hr: p.hr || 75,
+            bp: p.bp || '120/80',
             riskScore: p.status === 'Critical' ? 85 : 25,
-            aiNotes: 'Vitals stable.',
-            risks: { sepsis: 5, cardiac: 10, respiratory: 5 }
+            aiNotes: p.aiNotes || 'Vitals stable.',
+            risks: p.risks || { sepsis: 5, cardiac: 10, respiratory: 5 }
           }));
           setPatients(mapped);
+        } else {
+          setPatients([]);
         }
       } catch (err) {
         console.error("Failed to fetch patients:", err);
       }
     };
     fetchPatients();
-  }, []);
+  }, [user]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [predictionMode, setPredictionMode] = useState(false);
@@ -70,17 +75,18 @@ export default function DoctorPatients() {
   const [newAge, setNewAge] = useState("");
   const [newCondition, setNewCondition] = useState("");
   
-  const handleAddPatient = (e) => {
+  const handleAddPatient = async (e) => {
     e.preventDefault();
-    if (!newName) return;
+    if (!newName || !user?.uid) return;
     
-    const newPatient = {
-      id: Date.now(),
+    const newPatientData = {
+      full_name: newName,
       name: newName,
       age: parseInt(newAge) || 45,
       status: 'Stable',
-      lastActive: 'Just now',
+      last_active: 'Just now',
       condition: newCondition || 'Under Observation',
+      ward: newCondition || 'Under Observation',
       hr: Math.floor(Math.random() * (90 - 60 + 1) + 60), 
       bp: '120/80', 
       riskScore: Math.floor(Math.random() * (40 - 10 + 1) + 10), 
@@ -88,8 +94,14 @@ export default function DoctorPatients() {
       ambulanceStatus: 'None',
       risks: { sepsis: Math.floor(Math.random() * 20), cardiac: Math.floor(Math.random() * 20), respiratory: Math.floor(Math.random() * 20) }
     };
+
+    try {
+      const docRef = await apiPatients.addPatientForHospital(newPatientData, user.uid);
+      setPatients([{ id: docRef.id, ...newPatientData }, ...patients]);
+    } catch (e) {
+      console.error('Failed to add patient', e);
+    }
     
-    setPatients([newPatient, ...patients]);
     setIsDialogOpen(false);
     
     // Reset form
@@ -98,8 +110,13 @@ export default function DoctorPatients() {
     setNewCondition("");
   };
 
-  const removePatient = (id) => {
-    setPatients(patients.filter(p => p.id !== id));
+  const removePatient = async (id) => {
+    try {
+      await apiPatients.deletePatient(id);
+      setPatients(patients.filter(p => p.id !== id));
+    } catch (e) {
+      console.error('Failed to remove patient', e);
+    }
   };
 
   return (
