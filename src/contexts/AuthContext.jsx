@@ -148,7 +148,7 @@ export function AuthProvider({ children }) {
   /**
    * register — creates Firebase Auth user AND Firestore user document
    */
-  const register = async ({ email, password, role, full_name, phone }) => {
+  const register = async ({ email, password, role, full_name, phone, ...extra }) => {
     // 1. Create Auth account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
@@ -159,6 +159,7 @@ export function AuthProvider({ children }) {
       role,
       full_name,
       phone: phone || '',
+      ...extra,
       created_at: new Date().toISOString()
     });
 

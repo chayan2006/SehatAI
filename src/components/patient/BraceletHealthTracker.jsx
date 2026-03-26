@@ -192,7 +192,7 @@ export default function BraceletHealthTracker({ isRegistered, onRegister }) {
           </div>
           <div className="flex items-center gap-2 mt-4 relative z-10">
              <div className="flex-1 h-3 bg-slate-100 dark:bg-slate-800 rounded-full p-0.5 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-400 via-green-400 to-red-400 rounded-full transition-all duration-1000" style={{ width: `${(vitals.temperature - 35) * 20}%` }}></div>
+                <div className="h-full bg-linear-to-r from-blue-400 via-green-400 to-red-400 rounded-full transition-all duration-1000" style={{ width: `${(vitals.temperature - 35) * 20}%` }}></div>
              </div>
           </div>
         </motion.div>

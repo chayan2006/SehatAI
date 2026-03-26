@@ -10,7 +10,8 @@ import { z } from "zod";
 import {
   getPatients, getHospitalStats, getAllAppointments,
   sendNotificationToUser, getPatients as getDoctorPatients
-} from './supabaseService.js';
+} from './firestoreService.js';
+import { sendEmailNotification } from "./emailService.js";
 
 // ─── Image analysis (Gemini direct) ──────────────────────────────────────────
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -93,6 +94,23 @@ const tools = [
       return `Ward ${ward}: ${available} beds currently available.`;
     },
   }),
+  new DynamicStructuredTool({
+    name: "send_official_email",
+    description: "Sends an official email notification from sehataisupport@gmail.com. Use this for reports, receipts, or official staff communication.",
+    schema: z.object({
+      to: z.string().email().describe("Recipient email address."),
+      subject: z.string().describe("Subject of the email."),
+      body: z.string().describe("Content of the email message.")
+    }),
+    func: async ({ to, subject, body }) => {
+      await sendEmailNotification({
+        type: "general",
+        email: to,
+        details: { subject, body, from: "sehataisupport@gmail.com" }
+      });
+      return `Email with subject "${subject}" successfully queued for delivery to ${to} via SehatAI Official Support.`;
+    }
+  }),
 ];
 
 // ─── Agent factory ─────────────────────────────────────────────────────────────
@@ -114,6 +132,7 @@ You have real-time access to:
 2. Appointment data from Firestore
 3. Hospital stats (beds, occupancy)
 4. The ability to send push alerts directly to patients
+5. The ability to send official emails via SehatAI Support
 
 IMPORTANT: If the user sends a simple greeting, do NOT call tools. Just reply warmly.
 Always be professional, precise, and clinically accurate. Reply in English or Hinglish.`,

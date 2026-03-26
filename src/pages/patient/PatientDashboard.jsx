@@ -38,6 +38,7 @@ export default function PatientDashboard({ onLogout }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [primaryHospital, setPrimaryHospital] = useState(null);
+  const userName = localStorage.getItem('sehat_user_name') || user?.full_name || "Alex Johnson";
 
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
@@ -49,8 +50,12 @@ export default function PatientDashboard({ onLogout }) {
         if (apiKey) {
           const executor = await initPatientAgent({ apiKey });
           setAgentExecutor(executor);
+
           if (user?.email) {
             sendEmailNotification({ type: 'dashboard', email: user.email });
+          } else {
+             // Fallback for demo
+             sendEmailNotification({ type: 'dashboard', email: "patient@example.com" });
           }
         }
       } catch (error) {
@@ -98,7 +103,6 @@ export default function PatientDashboard({ onLogout }) {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-
   // Show medical setup if profile incomplete
   if (profileLoading) {
     return (
@@ -118,7 +122,6 @@ export default function PatientDashboard({ onLogout }) {
       />
     );
   }
-
   return (
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased font-display">
       {/* Sidebar Navigation */}
@@ -227,11 +230,11 @@ export default function PatientDashboard({ onLogout }) {
                 onClick={(e) => { e.stopPropagation(); setShowProfileMenu(!showProfileMenu); setShowNotifDropdown(false); }}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{user?.full_name || 'Patient'}</p>
-                  <p className="text-[11px] text-slate-500 font-medium">{user?.email}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{user?.full_name || userName}</p>
+                  <p className="text-[11px] text-slate-500 font-medium">{user?.email || 'Patient ID: #4492-B'}</p>
                 </div>
                 <div className="size-10 rounded-full bg-primary flex items-center justify-center text-white font-bold border-2 border-primary/20">
-                  {(user?.full_name || 'P').charAt(0).toUpperCase()}
+                   {user?.full_name ? user.full_name.charAt(0).toUpperCase() : userName.charAt(0).toUpperCase()}
                 </div>
               </div>
               
@@ -272,7 +275,7 @@ export default function PatientDashboard({ onLogout }) {
         <div className="flex-1 overflow-y-auto no-scrollbar" onClick={() => { setShowNotifDropdown(false); setShowProfileMenu(false); }}>
           <Routes>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardView onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
+            <Route path="dashboard" element={<DashboardView userName={userName} onNavigate={(id) => navigate(`/patient/${id}`)} isBraceletRegistered={isBraceletRegistered} setIsBraceletRegistered={setIsBraceletRegistered} setBraceletId={setBraceletId} />} />
             <Route path="appointments" element={<PatientAppointments onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="confirmation" element={<PatientBookingConfirmation onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="health" element={<PatientHistory onNavigate={(id) => navigate(`/patient/${id}`)} />} />
@@ -289,7 +292,7 @@ export default function PatientDashboard({ onLogout }) {
           <AIChat 
             agentExecutor={agentExecutor} 
             title="SehatAI Health Companion"
-            initialMessage={`Hi ${user?.full_name?.split(' ')[0] || 'there'}! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!`}
+            initialMessage={`Hi ${user?.full_name?.split(' ')[0] || userName.split(' ')[0]}! I'm your SehatAI Health Companion. I can help you with medical advice, symptom analysis, or checking your vitals. You can even upload a photo of a wound or report for analysis!`}
             welcomeTitle="Patient Agentic Assistant"
             themeColor="#10b77f"
           />
@@ -317,30 +320,8 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
+function DashboardView({ userName, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
-  const [appointments, setAppointments] = useState([]);
-  const [airQuality, setAirQuality] = useState(null);
-
-  useEffect(() => {
-    try {
-      // 1. Load real appointments
-      const saved = localStorage.getItem('sehat_appointments');
-      if (saved) {
-        setAppointments(JSON.parse(saved));
-      }
-      
-      // 2. Fetch Open-Meteo Air Quality
-      fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.71&longitude=-74.01&hourly=us_aqi')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.hourly?.us_aqi) {
-            const currentAqi = data.hourly.us_aqi[0] || 45;
-            setAirQuality({ aqi: currentAqi });
-          }
-        }).catch(err => console.error('AQI error:', err));
-    } catch (e) { console.error(e); }
-  }, []);
 
 
   const downloadLabResult = (testName, facility, date, status, notes) => {
@@ -371,7 +352,7 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
       {/* Welcome Section */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Welcome back, Alex</h2>
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Welcome back, {userName.split(' ')[0]}</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Your vitals are looking stable. 3 tasks need your attention today.</p>
         </div>
         <button onClick={() => onNavigate('appointments')} className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:brightness-105 transition-all">
@@ -414,25 +395,7 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
             <button onClick={() => onNavigate('appointments')} className="text-xs font-semibold text-primary hover:underline">View All</button>
           </div>
           <div className="space-y-4">
-            {appointments.length > 0 ? (
-              appointments.map((apt, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
-                  <div className="flex items-center gap-4 mb-3">
-                    <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
-                      <span className="text-[10px] font-bold uppercase leading-none">{apt.date?.split(' ')[0] || 'Unk'}</span>
-                      <span className="text-lg font-black leading-none">{apt.date?.split(' ')[1]?.replace(',', '') || '0'}</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">Visit: {apt.facility?.name}</p>
-                      <p className="text-xs text-slate-500">{apt.facility?.location} • {apt.slot}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => onNavigate('appointments')} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 transition-colors">Reschedule</button>
-                  </div>
-                </div>
-              ))
-            ) : showPhysical && (
+            {showPhysical && (
               <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 transform origin-top">
                 <div className="flex items-center gap-4 mb-3">
                   <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
@@ -458,31 +421,18 @@ function DashboardView({ onNavigate, isBraceletRegistered, setIsBraceletRegister
                 </div>
               </div>
             )}
-            
-            {/* Air Quality API Card */}
-            {airQuality && (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30 overflow-hidden relative group">
-                <span className="material-symbols-outlined absolute -right-4 -top-4 text-7xl text-blue-500/10 group-hover:rotate-12 transition-transform">air</span>
-                <div className="flex justify-between items-start mb-1 relative z-10">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Outdoor Health Context</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${airQuality.aqi <= 50 ? 'bg-green-100 text-green-700' : airQuality.aqi <= 100 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                    Live API
-                  </span>
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm opacity-75">
+              <div className="flex items-center gap-4">
+                <div className="size-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-500">
+                  <span className="text-[10px] font-bold uppercase leading-none">Nov</span>
+                  <span className="text-lg font-black leading-none">12</span>
                 </div>
-                <div className="relative z-10 space-y-2 mt-2">
-                  <div className="flex items-end gap-2">
-                    <span className="text-3xl font-black text-slate-900 dark:text-white leading-none">{airQuality.aqi}</span>
-                    <span className="text-xs font-bold text-slate-500 pb-0.5">US AQI</span>
-                  </div>
-                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                    {airQuality.aqi <= 50 ? 'Excellent air quality today. Safe for outdoor exercise and rehab.' : 
-                     airQuality.aqi <= 100 ? 'Moderate air quality. Limit prolonged outdoor exertion.' : 
-                     'Unhealthy air. Keep windows closed and avoid outdoor activities.'}
-                  </p>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Lab Results Review</p>
+                  <p className="text-xs text-slate-500">Video Consultation • 02:00 PM</p>
                 </div>
               </div>
-            )}
-            
+            </div>
           </div>
           </section>
 

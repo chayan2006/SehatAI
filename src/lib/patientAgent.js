@@ -9,9 +9,9 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { sendEmailNotification } from './emailService.js';
 import { getAppointments, createAppointment } from './supabaseService.js';
+import { searchKnowledge } from './vectorStore.js';
 
 // ─── Tool implementations ──────────────────────────────────────────────────────
-
 const tools = [
   new DynamicStructuredTool({
     name: "get_my_health_metrics",
@@ -99,6 +99,31 @@ const tools = [
     schema: z.preprocess((v) => v === null ? {} : v, z.object({})),
     func: async () => JSON.stringify({ heartRate: "76 BPM", spo2: "98.5%", temperature: "36.7°C", steps: "8,540", device: "ESP32-Smart-Bracelet" }),
   }),
+  new DynamicStructuredTool({
+    name: "search_health_advice",
+    description: "Queries the medical knowledge base for first aid, wellness tips, and common health solutions.",
+    schema: z.object({
+      query: z.string().describe("The health question or symptom to look up."),
+    }),
+    func: async ({ query }) => await searchKnowledge(query),
+  }),
+  new DynamicStructuredTool({
+    name: "send_official_email",
+    description: "Sends an official email notification from sehataisupport@gmail.com. Use this for reports, receipts, or official communication.",
+    schema: z.object({
+      to: z.string().email().describe("Recipient email address."),
+      subject: z.string().describe("Subject of the email."),
+      body: z.string().describe("Content of the email message.")
+    }),
+    func: async ({ to, subject, body }) => {
+      await sendEmailNotification({
+        type: "general",
+        email: to,
+        details: { subject, body, from: "sehataisupport@gmail.com" }
+      });
+      return `Email with subject "${subject}" successfully queued for delivery to ${to} via SehatAI Official Support.`;
+    }
+  }),
 ];
 
 // ─── Image analysis via Gemini (direct API — separate quota) ──────────────────
@@ -151,6 +176,7 @@ export async function initPatientAgent({ apiKey }) {
     tools,
     stateModifier: `You are SehatAI Patient Companion, an autonomous AI health agent.
 You help patients manage health records, log meals, book appointments, and provide advice.
+You can also search our medical knowledge base and send official emails via SehatAI Support.
 
 IMPORTANT: If the user sends a simple greeting like 'hi', do NOT call any tools. Just reply warmly.
 Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but actionable.`,
