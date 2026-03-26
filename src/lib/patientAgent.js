@@ -126,7 +126,22 @@ const tools = [
   }),
 ];
 
-// ─── Image analysis via Gemini (direct API — separate quota) ──────────────────
+// ─── Custom ML server (SehatAI trained model) ────────────────────────────────
+async function analyzeWithLocalML(imageDataUrl) {
+  try {
+    const res = await fetch('http://localhost:5001/analyze-xray', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: imageDataUrl }),
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null; // Server not running — fall back to Gemini
+  }
+}
+
 async function analyzeImageWithGemini(imageDataUrl, question) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) return "Gemini API key not configured for image analysis.";
@@ -185,11 +200,37 @@ Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but ac
   return {
     invoke: async ({ input, chat_history = [], image_data = null }) => {
       try {
-        // If image is uploaded, route to Gemini vision (separate quota, free tier)
-        if (image_data) {
-          const analysis = await analyzeImageWithGemini(image_data, input);
-          return { output: analysis };
+      // If image is uploaded:
+      if (image_data) {
+        // Step 1: Try local custom-trained ML model first
+        const mlResult = await analyzeWithLocalML(image_data);
+
+        if (mlResult && !mlResult.error) {
+          // ML server responded — inject findings into Groq for intelligent follow-up chat
+          const mlContext = `[MEDICAL IMAGING REPORT - SehatAI ML Model]
+Diagnosis: ${mlResult.diagnosis}
+Confidence: ${mlResult.confidence}%
+All Probabilities: ${JSON.stringify(mlResult.all_probabilities)}
+Model: ${mlResult.model}`;
+
+          const followUpPrompt = input
+            ? `The X-Ray scan was analyzed. Results:\n${mlContext}\n\nPatient question: "${input}"\n\nBased on the ML analysis above, answer the patient's question in a clear, empathetic way. Emphasize consulting a doctor for official diagnosis.`
+            : `The X-Ray scan was analyzed. Results:\n${mlContext}\n\nExplain these findings to the patient in simple language. Emphasize consulting a doctor.`;
+
+          const history = chat_history.slice(-4).map(([role, text]) =>
+            role === "human" ? new HumanMessage(text) : new AIMessage(text)
+          );
+          const response = await agent.invoke({
+            messages: [...history, new HumanMessage(followUpPrompt)],
+          });
+          const final = response.messages[response.messages.length - 1];
+          return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
         }
+
+        // Step 2: Fallback to Gemini if ML server is unavailable
+        const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
+        return { output: geminiAnalysis };
+      }
 
         // Text chat → Groq (free, unlimited)
         const history = chat_history.slice(-6).map(([role, text]) =>
