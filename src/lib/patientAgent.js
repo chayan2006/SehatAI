@@ -10,6 +10,7 @@ import { z } from "zod";
 import { sendEmailNotification } from './emailService.js';
 import { getAppointments, createAppointment } from './supabaseService.js';
 import { searchKnowledge } from './vectorStore.js';
+import { getDemoResponse } from './demoResponses.js';
 
 // ─── Tool implementations ──────────────────────────────────────────────────────
 const tools = [
@@ -153,7 +154,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,37 +201,32 @@ Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but ac
   return {
     invoke: async ({ input, chat_history = [], image_data = null }) => {
       try {
-      // If image is uploaded:
-      if (image_data) {
-        // Step 1: Try local custom-trained ML model first
-        const mlResult = await analyzeWithLocalML(image_data);
-
-        if (mlResult && !mlResult.error) {
-          // ML server responded — inject findings into Groq for intelligent follow-up chat
-          const mlContext = `[MEDICAL IMAGING REPORT - SehatAI ML Model]
-Diagnosis: ${mlResult.diagnosis}
-Confidence: ${mlResult.confidence}%
-All Probabilities: ${JSON.stringify(mlResult.all_probabilities)}
-Model: ${mlResult.model}`;
-
-          const followUpPrompt = input
-            ? `The X-Ray scan was analyzed. Results:\n${mlContext}\n\nPatient question: "${input}"\n\nBased on the ML analysis above, answer the patient's question in a clear, empathetic way. Emphasize consulting a doctor for official diagnosis.`
-            : `The X-Ray scan was analyzed. Results:\n${mlContext}\n\nExplain these findings to the patient in simple language. Emphasize consulting a doctor.`;
-
-          const history = chat_history.slice(-4).map(([role, text]) =>
-            role === "human" ? new HumanMessage(text) : new AIMessage(text)
-          );
-          const response = await agent.invoke({
-            messages: [...history, new HumanMessage(followUpPrompt)],
-          });
-          const final = response.messages[response.messages.length - 1];
-          return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
+        // DEMO_MODE Offline Fallback
+        if (import.meta.env.VITE_DEMO_MODE === 'true') {
+          return { output: getDemoResponse('patient', input) };
         }
 
-        // Step 2: Fallback to Gemini if ML server is unavailable
-        const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
-        return { output: geminiAnalysis };
-      }
+        // If image is uploaded:
+        if (image_data) {
+          // Step 1: Try local custom-trained ML model first
+          const mlResult = await analyzeWithLocalML(image_data);
+          
+          if (mlResult && mlResult.diagnosis) {
+            const diag = mlResult.diagnosis;
+            const conf = mlResult.confidence;
+            const advice = diag === 'PNEUMONIA' 
+              ? '\n\n⚠️ **Medical Alert:** The scan suggests Pneumonia. Please consult a pulmonologist immediately.' 
+              : '\n\n✅ The scan appears Normal. Maintain healthy habits and consult a doctor if you feel unwell.';
+              
+            return {
+              output: `**AI Vision Analysis (Custom ML Model)**\nI have analyzed your X-Ray.\n\n**Diagnosis:** ${diag}\n**Confidence:** ${conf}%${advice}`
+            };
+          }
+
+          // Step 2: Fallback to Gemini if local ML is down or fails
+          const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
+          return { output: geminiAnalysis };
+        }
 
         // Text chat → Groq (free, unlimited)
         const history = chat_history.slice(-6).map(([role, text]) =>

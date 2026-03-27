@@ -204,10 +204,10 @@ export default function HospitalWard({ hospitalId, primaryColor, theme }) {
                   <span className="text-[10px] text-slate-400 font-bold ml-2">({ward.beds?.length || 0} BEDS)</span>
                 </h3>
                 <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-tighter ${
-                  (ward.beds?.filter(b=>b.status==='occupied').length / (ward.beds?.length || 1)) > 0.8 
+                  ((ward.beds || []).filter(b=>b.status==='occupied').length / (ward.beds?.length || 1)) > 0.8 
                   ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
                 }`}>
-                  {Math.round((ward.beds?.filter(b=>b.status==='occupied').length / (ward.beds?.length || 1)) * 100)}% OCCUPANCY
+                  {Math.round(((ward.beds || []).filter(b=>b.status==='occupied').length / (ward.beds?.length || 1)) * 100)}% OCCUPANCY
                 </span>
               </div>
               
@@ -234,7 +234,7 @@ export default function HospitalWard({ hospitalId, primaryColor, theme }) {
                         <div className="pt-3 border-t border-slate-50 flex gap-2">
                            <button 
                              disabled={isProcessing}
-                             onClick={() => setTransferModal({ fromBedId: bed.id, patientId: p.id, wardName: ward.name, bedNumber: bed.bed_number, patientName: p.full_name })}
+                             onClick={() => setTransferModal({ fromBedId: bed.id, patientId: p?.id, wardName: ward.name, bedNumber: bed.bed_number, patientName: p?.full_name || 'Unknown' })}
                              className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-black uppercase rounded-lg transition-all"
                            >
                              Transfer
@@ -303,7 +303,7 @@ export default function HospitalWard({ hospitalId, primaryColor, theme }) {
                     </div>
                     <div>
                       <p className="text-sm font-black text-slate-900">{p.full_name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Patient ID: {p.id.slice(-6).toUpperCase()}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Patient ID: {String(p.id || '').slice(-6).toUpperCase()}</p>
                     </div>
                     <ChevronRight size={14} className="ml-auto text-slate-300 group-hover:text-slate-900" />
                   </button>
@@ -331,7 +331,7 @@ export default function HospitalWard({ hospitalId, primaryColor, theme }) {
             </div>
             <div className="p-6 space-y-4">
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                 <div className="size-10 bg-white rounded-xl flex items-center justify-center text-xs font-bold text-slate-400">{transferModal.patientName[0]}</div>
+                 <div className="size-10 bg-white rounded-xl flex items-center justify-center text-xs font-bold text-slate-400">{(transferModal.patientName || '?')[0]}</div>
                  <div>
                     <p className="text-xs font-black text-slate-900 uppercase">{transferModal.patientName}</p>
                     <p className="text-[10px] text-slate-500 font-bold">Currently at {transferModal.wardName} - Bed {transferModal.bedNumber}</p>

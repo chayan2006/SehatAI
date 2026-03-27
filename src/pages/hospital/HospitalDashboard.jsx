@@ -315,11 +315,11 @@ export default function HospitalDashboard() {
                   {(() => {
                     const filtered = patients.filter(p => {
                       const mp = p.medical_profile || p.medicalProfile || {};
-                      const nameMatch = (p.full_name || mp.emergencyContact || p.id).toLowerCase().includes(searchQuery.toLowerCase());
+                      const nameMatch = String(p.full_name || mp.emergencyContact || p.id).toLowerCase().includes(searchQuery.toLowerCase());
                       const statusMatch = statusFilter === 'all' || 
                         (statusFilter === 'critical' && mp.hasRecentInjury) ||
-                        (statusFilter === 'admitted' && !mp.hasRecentInjury) || // Simplified logic for demo
-                        (statusFilter === 'stable' && !mp.hasRecentInjury && mp.chronicConditions === 'None');
+                        (statusFilter === 'admitted' && (p.status === 'admitted' || p.status === 'Admitted')) ||
+                        (statusFilter === 'stable' && !mp.hasRecentInjury && (!mp.chronicConditions || mp.chronicConditions === 'None'));
                       return nameMatch && statusMatch;
                     });
 

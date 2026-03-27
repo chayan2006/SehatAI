@@ -38,12 +38,18 @@ export default function AdminLogin({ onConfirm, onBack }) {
         setError('');
         try {
             if (mode === 'signup') {
+                // Fix: Verify Admin Secret Key before allowing registration
+                const secretKey = import.meta.env.VITE_ADMIN_SECRET_KEY;
+                if (secretKey && formData.npi !== secretKey) {
+                    throw new Error('Invalid Admin Verification Code. Registration denied.');
+                }
+
                 await register({
                     email: formData.email,
                     password: formData.password,
                     role: 'admin',
                     full_name: formData.full_name,
-                    phone: formData.npi, // using NPI field as phone/extra for now
+                    phone: formData.npi, 
                     institution: formData.institution
                 });
             } else {

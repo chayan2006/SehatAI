@@ -92,10 +92,11 @@ export function AuthProvider({ children }) {
     const uid = userCredential.user.uid;
     
     // 2. Log into Supabase Auth (Sync)
-    try {
-      await supabase.auth.signInWithPassword({ email, password });
-    } catch (err) {
-      console.warn("Supabase login failed, but Firebase succeeded:", err.message);
+    const { error: supabaseError } = await supabase.auth.signInWithPassword({ email, password });
+    if (supabaseError) {
+      console.error("Supabase login failed:", supabaseError.message);
+      await signOut(auth); // Rollback Firebase if Supabase fails
+      throw new Error(`Cloud Sync Error: ${supabaseError.message}`);
     }
 
     // 3. Fetch role to ensure they are logging into the correct portal
@@ -166,107 +167,84 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * register — creates Firebase Auth user AND Firestore user document
+   * register — creates Firebase Auth user AND syncs with Supabase/Firestore
    */
   const register = async ({ email, password, role, full_name, phone, institution, ...extra }) => {
-    // 1. Create Auth account
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUid = userCredential.user.uid;
-    
-    // 2. Create Supabase Auth account (Sync)
-    const { data: supabaseAuth, error: supabaseError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name,
-          role,
-          phone,
-          hospital_name: institution
+    try {
+      console.log("Starting multi-platform registration for:", email);
+
+      // 1. Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUid = userCredential.user.uid;
+
+      // 2. Create user in Supabase Auth (Sync)
+      const { data: supabaseAuth, error: supabaseError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: full_name,
+            role: role || 'patient'
+          }
         }
+      });
+
+      if (supabaseError) {
+        console.error("Supabase signup failed:", supabaseError.message);
+        // We keep Firebase user but log the sync error
       }
-    });
 
-    if (supabaseError) {
-      console.warn("Supabase registration failed, but Firebase succeeded:", supabaseError.message);
-    }
+      const supabaseUid = supabaseAuth?.user?.id;
 
-    const supabaseUid = supabaseAuth?.user?.id;
+      // 3. Create profile in Firestore (Portal Source of Truth)
+      const userData = {
+        uid: firebaseUid,
+        supabase_uid: supabaseUid || null,
+        email,
+        role: role || 'patient',
+        full_name,
+        phone: phone || '',
+        institution: institution || '',
+        ...extra,
+        created_at: new Date().toISOString(),
+        medicalProfileComplete: false
+      };
 
-    // 3. Create extended profile in Firestore 'users' collection
-    await setDoc(doc(db, 'users', firebaseUid), {
-      email,
-      role,
-      full_name,
-      phone: phone || '',
-      institution: institution || '',
-      supabase_uid: supabaseUid || null,
-      ...extra,
-      created_at: new Date().toISOString()
-    });
+      await setDoc(doc(db, 'users', firebaseUid), userData);
 
-    // 4. Create extended profile in Supabase tables (Sync)
-    if (supabaseUid) {
-      try {
-        // The profiles table might be handled by a trigger, but manual upsert ensures consistency
-        await supabase.from('profiles').upsert({
-          id: supabaseUid,
-          email,
-          role,
-          full_name,
-          phone_number: phone || '',
-          hospital_name: role === 'doctor' || role === 'admin' ? (institution || full_name) : null,
-          firebase_uid: firebaseUid
-        });
-
-        // Portal-specific records in Supabase
-        if (role === 'patient') {
-          await supabase.from('patients').upsert({ 
+      // 4. Create profile in Supabase (AI/Reports Source of Truth)
+      if (supabaseUid) {
+        try {
+          await supabase.from('profiles').upsert({
             id: supabaseUid,
-            full_name: full_name
+            email,
+            role: role || 'patient',
+            full_name,
+            firebase_uid: firebaseUid,
+            hospital_name: role === 'hospital' ? institution : null,
+            status: 'active'
           });
-        } else if (role === 'doctor') {
-          // Trigger might create hospital, but we ensure the doctor record exists
-          await supabase.from('hospitals').upsert({ 
-            admin_id: supabaseUid,
-            hospital_name: institution || full_name,
-            contact_email: email 
-          });
-        } else if (role === 'admin' && institution) {
-          await supabase.from('hospitals').upsert({ 
-            admin_id: supabaseUid,
-            hospital_name: institution,
-            contact_email: email 
-          });
+
+          // Role-specific Supabase records
+          if (role === 'patient') {
+            await supabase.from('patients').upsert({ user_id: supabaseUid });
+            await setDoc(doc(db, 'patients', firebaseUid), { medicalProfileComplete: false });
+          } else if (role === 'hospital') {
+            await supabase.from('hospitals').upsert({ user_id: supabaseUid, name: institution || full_name });
+          }
+        } catch (sErr) {
+          console.warn("Supabase data sync encountered an issue:", sErr.message);
         }
-      } catch (err) {
-        console.error("Error creating Supabase profile records:", err);
       }
+
+      // 5. Update local state
+      setUser(userData);
+      return userCredential.user;
+
+    } catch (error) {
+      console.error("Registration failed:", error);
+      throw error;
     }
-
-    // 5. Create portal-specific collections in Firestore
-    if (role === 'patient') {
-      await setDoc(doc(db, 'patients', firebaseUid), { user_id: firebaseUid });
-    } else if (role === 'doctor') {
-      await setDoc(doc(db, 'doctors', firebaseUid), { user_id: firebaseUid, is_available: true });
-    }
-
-    // 6. Explicitly set user state to ensure the app reacts to the correct role immediately
-    const finalUserData = {
-      id: firebaseUid,
-      email,
-      role,
-      full_name,
-      phone: phone || '',
-      institution: institution || '',
-      supabase_uid: supabaseUid || null,
-      is_new_user: false
-    };
-    
-    console.log("Registration complete. Setting user state:", finalUserData.role);
-    setUser(finalUserData);
-
-    return userCredential.user;
   };
 
   const logout = async () => {

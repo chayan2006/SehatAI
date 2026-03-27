@@ -60,7 +60,7 @@ export async function dispatchEmergency({ symptoms, userLocation, medicalProfile
   // 2. Find nearest hospital
   const sorted = getHospitalsByDistance(
     userLocation?.lat || 28.6181,
-    userLocation?.lng || 28.6181
+    userLocation?.lng || 77.2410
   );
   const nearestHospital = sorted[0];
   const primaryHospital = primaryHospitalId ? getHospital(primaryHospitalId) : null;

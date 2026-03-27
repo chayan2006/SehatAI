@@ -11,6 +11,7 @@ import {
   getAllUsers, getHospitalStats, getAllAppointments,
   sendNotificationToUser, getPatients, getDoctors
 } from './supabaseService.js';
+import { getDemoResponse } from './demoResponses.js';
 
 // ─── Image analysis (Gemini direct) ──────────────────────────────────────────
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -21,7 +22,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
   const [, mimeType, base64Data] = match;
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,6 +140,11 @@ Always be precise. Reply in English or Hinglish.`,
   return {
     invoke: async ({ input, chat_history = [], image_data = null }) => {
       try {
+        // DEMO_MODE Offline Fallback
+        if (import.meta.env.VITE_DEMO_MODE === 'true') {
+          return { output: getDemoResponse('admin', input) };
+        }
+
         if (image_data) {
           const analysis = await analyzeImageWithGemini(image_data, input);
           return { output: analysis };

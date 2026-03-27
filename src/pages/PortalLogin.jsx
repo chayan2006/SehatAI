@@ -1,19 +1,24 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendOtpEmail } from "@/lib/emailService";
 import { HOSPITAL_LIST } from "@/lib/hospitalConfig";
 
-// ── Helper: generate a random 6-digit OTP ────────────────────────────────────
-// TODO: Replace with dynamic OTP generation when email delivery is configured
-const generateOTP = () => "769854";
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 export default function PortalLogin({ onLogin }) {
   const { loginRole } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { login, register, loginWithGoogle } = useAuth();
 
-  const [mode, setMode] = useState("signin");
+  const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'signin');
+  
+  // Update URL and state when toggling
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    setSearchParams(newMode === 'signup' ? { mode: 'signup' } : {}, { replace: true });
+  };
   const [role] = useState(
     loginRole === "doctor" ? "Hospital" : loginRole === "patient" ? "Patient" : "Admin"
   );

@@ -1,15 +1,15 @@
 /**
  * SehatAI Isomorphic Vector Store Utility
- * Provides RAG/Knowledge Memory capabilities with browser-safe fallbacks.
- * Robust against embedding failures.
+ * Provides RAG/Knowledge Memory capabilities with HNSWLib persistence.
+ * Robust against embedding failures and environment differences.
  */
-
-const isBrowser = typeof window !== 'undefined';
 
 // Singleton instance
 let vectorStore = null;
 let embeddings = null;
 let useMock = false;
+
+const SAVE_PATH = "c:\\Users\\kadit\\OneDrive\\Desktop\\Hackathon\\sehat_ai\\.cache\\vectorstore";
 
 // Seed Data for Mock Search
 const SEED_DATA = [
@@ -27,33 +27,47 @@ const initLangChain = async () => {
 
   try {
     console.log("VectorStore: Initializing LangChain components...");
-    const { MemoryVectorStore } = await import("@langchain/classic/vectorstores/memory");
+    
+    // Fix: Using community package for HNSWLib
+    const { HNSWLib } = await import("@langchain/community/vectorstores/hnswlib");
     const { GoogleGenerativeAIEmbeddings } = await import("@langchain/google-genai");
 
-    const apiKey = process.env.VITE_GOOGLE_AI_KEY || process.env.GOOGLE_AI_KEY || process.env.GEMINI_API_KEY;
+    // Fix: Use import.meta.env for Vite compatibility
+    const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY || import.meta.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
-      throw new Error("Missing Google AI API Key for embeddings.");
+      throw new Error("Missing VITE_GOOGLE_AI_KEY for embeddings.");
     }
 
     embeddings = new GoogleGenerativeAIEmbeddings({
       apiKey,
       modelName: "embedding-001",
-      maxRetries: 0, // CRITICAL: Stop hanging on errors
+      maxRetries: 0,
     });
 
-    vectorStore = new MemoryVectorStore(embeddings);
+    try {
+      // Try loading from saved path first
+      console.log(`VectorStore: Attempting to load from ${SAVE_PATH}`);
+      vectorStore = await HNSWLib.load(SAVE_PATH, embeddings);
+      console.log("VectorStore: Loaded existing persistence successfully.");
+    } catch (loadErr) {
+      console.log("VectorStore: No existing index found, creating fresh store...");
+      vectorStore = await HNSWLib.fromDocuments(SEED_DATA, embeddings);
+      
+      // Save for persistence if NOT in browser (HNSWLib save requires 'fs')
+      if (typeof window === 'undefined') {
+        try {
+          await vectorStore.save(SAVE_PATH);
+          console.log("VectorStore: Persisted fresh index to disk.");
+        } catch (saveErr) {
+          console.warn("VectorStore: Failed to save to disk:", saveErr.message);
+        }
+      }
+    }
     
-    // Test embeddings with a small call to see if it works
-    console.log("VectorStore: Pre-seeding test...");
-    await vectorStore.addDocuments([SEED_DATA[0]]);
-    
-    // Seed the rest
-    await vectorStore.addDocuments(SEED_DATA.slice(1));
-    console.log("VectorStore: LangChain initialized and seeded successfully.");
     return vectorStore;
   } catch (err) {
-    console.warn("VectorStore: LangChain initialization failed, switching to FAILS-SAFE MOCK:", err.message);
+    console.warn("VectorStore: LangChain initialization failed, switching to SAFE MOCK:", err.message);
     useMock = true;
     vectorStore = {
       addDocuments: async (docs) => {
@@ -62,7 +76,6 @@ const initLangChain = async () => {
       },
       similaritySearch: async (query, k) => {
         console.log("Mock VectorStore: Performing keyword search for:", query);
-        // Simple keyword matching for the mock
         const words = query.toLowerCase().split(' ');
         const matches = SEED_DATA.filter(doc => 
           words.some(word => doc.pageContent.toLowerCase().includes(word))
@@ -75,7 +88,7 @@ const initLangChain = async () => {
 };
 
 /**
- * Gets or initializes the memory vector store.
+ * Gets or initializes the vector store.
  */
 export const getVectorStore = async () => {
   return await initLangChain();
@@ -89,8 +102,7 @@ export const searchKnowledge = async (query) => {
     const store = await getVectorStore();
     const results = await store.similaritySearch(query, 3);
     const content = results.map(r => r.pageContent).join("\n\n");
-    // Truncate to 1000 chars to save tokens
-    return content.length > 1000 ? content.substring(0, 1000) + "... [Truncated for brevity]" : content;
+    return content.length > 1000 ? content.substring(0, 1000) + "... [Truncated]" : content;
   } catch (err) {
     console.error("VectorStore: Search failed:", err.message);
     return "Error retrieving knowledge memory. Please use clinical judgment.";
@@ -104,6 +116,11 @@ export const addMemory = async (content, metadata = {}) => {
   try {
     const store = await getVectorStore();
     await store.addDocuments([{ pageContent: content, metadata }]);
+    
+    // Fix: Persistence update if possible
+    if (!useMock && typeof window === 'undefined' && vectorStore.save) {
+      await vectorStore.save(SAVE_PATH);
+    }
     return true;
   } catch (err) {
     console.error("VectorStore: Memory storage failed:", err.message);

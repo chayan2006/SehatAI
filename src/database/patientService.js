@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
 export const patientService = {
-  async getPatients(hospitalId, page = 0, pageSize = 10) {
+  async getPatients(hospitalId, page = 0, pageSize = 200) {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 

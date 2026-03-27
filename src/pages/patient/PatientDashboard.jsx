@@ -9,11 +9,13 @@ import PatientBookingConfirmation from './PatientBookingConfirmation';
 import PatientSettings from './PatientSettings';
 import PatientMedicalSetup from './PatientMedicalSetup';
 import PatientEmergency from './PatientEmergency';
+import PatientSupport from './PatientSupport';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
 import AIChat from '@/components/AIChat';
 import BraceletHealthTracker from '@/components/patient/BraceletHealthTracker';
+import SehatLinkPage from './SehatLinkPage';
 import { sendEmailNotification } from '@/lib/emailService';
 import { useAuth } from '@/contexts/AuthContext';
 import { getNotificationsForUser, markNotificationRead } from '@/lib/supabaseService';
@@ -35,6 +37,7 @@ export default function PatientDashboard({ onLogout }) {
   const [unreadCount, setUnreadCount] = useState(0);
   // Medical profile gate & location
   const [medicalProfileComplete, setMedicalProfileComplete] = useState(true);
+  const [skippedSetup, setSkippedSetup] = useState(sessionStorage.getItem('skippedMedicalSetup') === 'true');
   const [medicalProfileData, setMedicalProfileData] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
@@ -126,12 +129,16 @@ export default function PatientDashboard({ onLogout }) {
     );
   }
 
-  if (!medicalProfileComplete) {
+  if (!medicalProfileComplete && !skippedSetup) {
     return (
       <PatientMedicalSetup
         onComplete={() => {
           setMedicalProfileComplete(true);
           navigate('/patient/dashboard');
+        }}
+        onSkip={() => {
+          setSkippedSetup(true);
+          sessionStorage.setItem('skippedMedicalSetup', 'true');
         }}
       />
     );
@@ -303,7 +310,7 @@ export default function PatientDashboard({ onLogout }) {
             <Route path="confirmation" element={<PatientBookingConfirmation onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="health" element={<PatientHistory onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="medications" element={<PatientMedications onNavigate={(id) => navigate(`/patient/${id}`)} />} />
-            <Route path="support" element={<PatientAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="support" element={<PatientSupport onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="ambulance" element={<PatientBookAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="settings" element={<PatientSettings onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="emergency" element={<PatientEmergency onNavigate={(id) => navigate(`/patient/${id}`)} />} />
@@ -457,12 +464,13 @@ function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegiste
           )}
         </div>
         
-        <BraceletHealthTracker 
-          isRegistered={isBraceletRegistered} 
+        <BraceletHealthTracker
+          isRegistered={isBraceletRegistered}
           onRegister={(id) => {
             setIsBraceletRegistered(true);
             setBraceletId(id);
-          }} 
+          }}
+          onLearnMore={() => onNavigate('sehat-link')}
         />
       </section>
 

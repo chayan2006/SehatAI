@@ -14,6 +14,7 @@ import PatientDashboard from '@/pages/patient/PatientDashboard';
 const HospitalLoginPage = lazy(() => import('@/pages/hospital/HospitalLogin'));
 const HospitalDashboardPage = lazy(() => import('@/pages/hospital/HospitalDashboard'));
 const HospitalRegisterPage = lazy(() => import('@/pages/hospital/HospitalRegister'));
+const SehatLinkPage = lazy(() => import('@/pages/patient/SehatLinkPage'));
 
 function LoadingScreen() {
   return (
@@ -57,12 +58,12 @@ export default function App() {
 
   // When user picks a portal from the gateway, log out any existing session first
   // so the auth-redirect useEffect doesn't bounce them back to their old dashboard.
-  const handlePortalSelect = async (selectedRole) => {
+  const handlePortalSelect = async (selectedRole, initialMode = 'signin') => {
     if (user) {
       await logout();
     }
     if (selectedRole === 'admin') { navigate('/admin/login'); return; }
-    navigate(`/portal/${selectedRole}`);
+    navigate(`/portal/${selectedRole}${initialMode === 'signup' ? '?mode=signup' : ''}`);
   };
 
   return (
@@ -108,6 +109,16 @@ export default function App() {
       />
 
       {/* ── Patient Portal ── */}
+      <Route
+        path="/patient/sehat-link"
+        element={
+          <ProtectedRoute role="patient">
+            <Suspense fallback={<LoadingScreen />}>
+              <SehatLinkPage onBack={() => window.history.back()} />
+            </Suspense>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/patient/*"
         element={

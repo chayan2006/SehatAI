@@ -20,8 +20,8 @@ const STEPS = [
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-export default function PatientMedicalSetup({ onComplete }) {
-  const { user } = useAuth();
+export default function PatientMedicalSetup({ onComplete, onSkip }) {
+  const { user, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -134,9 +134,22 @@ export default function PatientMedicalSetup({ onComplete }) {
               <span className="material-symbols-outlined text-2xl">health_and_safety</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Complete Your Health Profile</h1>
-              <p className="text-white/80 text-sm mt-0.5">Step {step} of {STEPS.length} • This information personalizes your care</p>
+              <h1 className="text-2xl font-bold text-white">Update Your Health Profile</h1>
+              <p className="text-white/80 text-sm mt-0.5">Welcome, {user?.full_name?.split(' ')[0] || 'User'}! Step {step} of {STEPS.length}</p>
             </div>
+              <button 
+                onClick={onSkip}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all"
+              >
+                Skip for now
+              </button>
+              <button 
+                onClick={logout}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-all"
+              >
+              <span className="material-symbols-outlined text-sm">logout</span>
+              Sign Out
+            </button>
           </div>
 
           {/* Progress bar */}
