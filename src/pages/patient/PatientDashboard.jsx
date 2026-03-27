@@ -9,6 +9,7 @@ import PatientBookingConfirmation from './PatientBookingConfirmation';
 import PatientSettings from './PatientSettings';
 import PatientMedicalSetup from './PatientMedicalSetup';
 import PatientEmergency from './PatientEmergency';
+import PatientDiabetesCheck from './PatientDiabetesCheck';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initPatientAgent } from '@/lib/patientAgent';
@@ -157,6 +158,7 @@ export default function PatientDashboard({ onLogout }) {
           <NavItem id="support"    icon="support_agent"  label="Support"       active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
           <NavItem id="ambulance"  icon="ambulance"      label="Book Ambulance" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
           <NavItem id="emergency"  icon="emergency"      label="Emergency SOS"  active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
+          <NavItem id="diabetes-check" icon="biotech" label="Diabetes Risk Check" active={currentPathSegment} onClick={(id) => navigate(`/patient/${id}`)} />
         </nav>
         {/* Location status pill */}
         {userLocation && (
@@ -307,6 +309,7 @@ export default function PatientDashboard({ onLogout }) {
             <Route path="ambulance" element={<PatientBookAmbulance onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="settings" element={<PatientSettings onNavigate={(id) => navigate(`/patient/${id}`)} />} />
             <Route path="emergency" element={<PatientEmergency onNavigate={(id) => navigate(`/patient/${id}`)} />} />
+            <Route path="diabetes-check" element={<PatientDiabetesCheck onNavigate={(id) => navigate(`/patient/${id}`)} />} />
           </Routes>
         </div>
 

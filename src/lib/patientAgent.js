@@ -164,7 +164,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
               { text: question || "Analyze this medical image and provide a clinical assessment." }
             ]
           }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1024 }
+          generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
         })
       }
     );
