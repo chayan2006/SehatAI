@@ -134,7 +134,7 @@ async function analyzeWithLocalML(imageDataUrl, modelType = "hair_model") {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
-      signal: AbortSignal.timeout(5000) // 5 second timeout
+      signal: AbortSignal.timeout(35000) // 35 second timeout — Render free tier takes ~30s to wake up
     });
     if (!res.ok) return null;
     return await res.json();
@@ -163,7 +163,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,9 +242,8 @@ STRICT STYLE RULES:
             return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
           }
 
-          // Step 2: Fallback to Gemini if local ML is down or fails
-          const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
-          return { output: geminiAnalysis };
+          // Step 2: ML server is sleeping (Render free tier cold-start takes ~30-50s)
+          return { output: `⏳ **The AI Analysis Server is waking up!**\n\nThe ML server was asleep (it's on the free tier). It usually takes **30-50 seconds** to start.\n\n**Please wait 30 seconds and then upload your image again.** After the first wake-up, it stays active for 15 minutes! 🚀` };
         }
 
         // Text chat → Groq (free, unlimited)
