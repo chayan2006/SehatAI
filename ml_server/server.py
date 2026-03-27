@@ -32,55 +32,60 @@ DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
 app = Flask(__name__)
 CORS(app)   # Allow requests from React app (localhost:5173)
 
-# ── LOAD MODELS ───────────────────────────────────────────────────────────────
-MODELS = {}
+# ── LAZY MODEL LOADING (load on-demand to save RAM on free tier) ──────────────
+MODELS = {}  # Cache once loaded
 
-def load_all_models():
-    global MODELS
-    if not os.path.exists(MODEL_DIR):
-        os.makedirs(MODEL_DIR)
-        return
+def load_model(model_key):
+    """Load a single model by key, cache it, return it."""
+    if model_key in MODELS:
+        return MODELS[model_key]
 
-    for filename in os.listdir(MODEL_DIR):
-        if filename.endswith(".pth"):
-            model_key = filename.replace(".pth", "")
-            path = os.path.join(MODEL_DIR, filename)
-            
-            try:
-                checkpoint = torch.load(path, map_location=DEVICE, weights_only=False)
-                # Handle different key names between pipelines
-                classes = checkpoint.get("class_names", checkpoint.get("classes", []))
-                model_name = checkpoint.get("model_name", "densenet121").lower()
-                
-                if "efficientnet" in model_name:
-                    net = timm.create_model(model_name, pretrained=False, num_classes=len(classes))
-                else:
-                    # Legacy fallback to custom DenseNet definition
-                    hidden_size = 256
-                    if "model_state_dict" in checkpoint and "classifier.0.weight" in checkpoint["model_state_dict"]:
-                        hidden_size = checkpoint["model_state_dict"]["classifier.0.weight"].size(0)
+    # Try exact name or with _model suffix
+    candidates = [model_key, f"{model_key}_model"]
+    path = None
+    for name in candidates:
+        candidate_path = os.path.join(MODEL_DIR, f"{name}.pth")
+        if os.path.exists(candidate_path):
+            path = candidate_path
+            model_key = name
+            break
 
-                    net = models.densenet121(weights=None)
-                    net.classifier = nn.Sequential(
-                        nn.Linear(net.classifier.in_features, hidden_size),
-                        nn.ReLU(),
-                        nn.Dropout(0.4),
-                        nn.Linear(hidden_size, len(classes))
-                    )
-                
-                # 'state_dict' (from timm) or 'model_state_dict' (from old train.py)
-                state = checkpoint.get("model_state_dict", checkpoint.get("state_dict"))
-                net.load_state_dict(state)
-                net.eval().to(DEVICE)
-                
-                MODELS[model_key] = {
-                    "net": net,
-                    "classes": classes,
-                    "name": model_key.replace("_model", "").upper()
-                }
-                print(f"✅ Loaded Model: {model_key} ({len(classes)} classes)")
-            except Exception as e:
-                print(f"❌ Failed to load {filename}: {e}")
+    if not path:
+        return None
+
+    try:
+        checkpoint = torch.load(path, map_location=DEVICE, weights_only=False)
+        classes = checkpoint.get("class_names", checkpoint.get("classes", []))
+        model_name = checkpoint.get("model_name", "densenet121").lower()
+
+        if "efficientnet" in model_name:
+            net = timm.create_model(model_name, pretrained=False, num_classes=len(classes))
+        else:
+            hidden_size = 256
+            if "model_state_dict" in checkpoint and "classifier.0.weight" in checkpoint["model_state_dict"]:
+                hidden_size = checkpoint["model_state_dict"]["classifier.0.weight"].size(0)
+            net = models.densenet121(weights=None)
+            net.classifier = nn.Sequential(
+                nn.Linear(net.classifier.in_features, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(0.4),
+                nn.Linear(hidden_size, len(classes))
+            )
+
+        state = checkpoint.get("model_state_dict", checkpoint.get("state_dict"))
+        net.load_state_dict(state)
+        net.eval().to(DEVICE)
+
+        MODELS[model_key] = {
+            "net": net,
+            "classes": classes,
+            "name": model_key.replace("_model", "").upper()
+        }
+        print(f"✅ Loaded on demand: {model_key} ({len(classes)} classes)")
+        return MODELS[model_key]
+    except Exception as e:
+        print(f"❌ Failed to load {model_key}: {e}")
+        return None
 
 # ── IMAGE PREPROCESSING ───────────────────────────────────────────────────────
 preprocess = transforms.Compose([
@@ -103,12 +108,15 @@ def health():
 
 @app.route("/analyze/<model_type>", methods=["POST"])
 def analyze(model_type):
-    target = MODELS.get(model_type) or MODELS.get(f"{model_type}_model")
-    
+    # Lazy-load the requested model (saves RAM on free tier)
+    target = load_model(model_type)
     if not target:
-        return jsonify({ 
+        target = load_model(f"{model_type}_model")
+
+    if not target:
+        return jsonify({
             "error": f"Model '{model_type}' not found.",
-            "available_models": list(MODELS.keys())
+            "available_models": [f.replace('.pth','') for f in os.listdir(MODEL_DIR) if f.endswith('.pth')]
         }), 404
 
     data = request.json
@@ -142,17 +150,9 @@ def analyze(model_type):
 # Legacy route for backward compatibility
 @app.route("/analyze-image", methods=["POST"])
 def analyze_legacy():
-    # Default to hair_model or first available
-    default_model = "hair_model" if "hair_model" in MODELS else list(MODELS.keys())[0] if MODELS else None
-    return analyze(default_model)
+    # Default to xray model
+    return analyze("xray")
 
-
-# Initialize models at startup for Gunicorn
-load_all_models()
-if not MODELS:
-    print("\n🔴 No models found! Please ensure your weights (.pth) are in the ml_server/model folder.")
-else:
-    print(f"🚀 Loaded {len(MODELS)} models for production serving.")
 
 if __name__ == "__main__":
     print(f"\n🚀 SehatAI Multi-Model Server running at http://localhost:5001")
