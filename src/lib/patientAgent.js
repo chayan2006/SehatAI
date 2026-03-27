@@ -128,9 +128,9 @@ const tools = [
 ];
 
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
-async function analyzeWithLocalML(imageDataUrl) {
+async function analyzeWithLocalML(imageDataUrl, modelType = "hair_model") {
   try {
-    const res = await fetch('http://localhost:5001/analyze-xray', {
+    const res = await fetch(`http://localhost:5001/analyze/${modelType}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
@@ -139,8 +139,17 @@ async function analyzeWithLocalML(imageDataUrl) {
     if (!res.ok) return null;
     return await res.json();
   } catch {
-    return null; // Server not running — fall back to Gemini
+    return null; // Server not running or model not found — fall back to Gemini
   }
+}
+
+function detectModelType(input = "") {
+  const text = input.toLowerCase();
+  if (text.includes("hair") || text.includes("scalp") || text.includes("bald")) return "hair_model";
+  if (text.includes("chest") || text.includes("lung") || text.includes("xray") || text.includes("x-ray")) return "xray_model";
+  if (text.includes("skin") || text.includes("mole") || text.includes("spot")) return "health_model";
+  if (text.includes("injury") || text.includes("wound") || text.includes("cut") || text.includes("burn") || text.includes("bruise")) return "injury_model";
+  return "hair_model"; // Default to hair since user just trained it
 }
 
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -181,7 +190,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 export async function initPatientAgent({ apiKey }) {
   const llm = new ChatGroq({
     apiKey: apiKey,
-    model: "llama-3.1-8b-instant",
+    model: "llama-3.3-70b-versatile",
     temperature: 0.2,
     maxRetries: 1,
     timeout: 20000,
@@ -190,12 +199,15 @@ export async function initPatientAgent({ apiKey }) {
   const agent = createReactAgent({
     llm,
     tools,
-    stateModifier: `You are SehatAI Patient Companion, an autonomous AI health agent.
-You help patients manage health records, log meals, book appointments, and provide advice.
-You can also search our medical knowledge base and send official emails via SehatAI Support.
+    stateModifier: `You are SehatAI Patient Companion.
+Help patients manage records, log meals, book appointments, and provide advice.
 
-IMPORTANT: If the user sends a simple greeting like 'hi', do NOT call any tools. Just reply warmly.
-Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but actionable.`,
+STRICT STYLE RULES:
+1. Be extremely CONCISE and ACTIONABLE. 
+2. Use BULLET POINTS for all medical/ML reports. 
+3. Avoid "fluff" or "boring" long paragraphs. Keep it as a mid-length summary.
+4. Only provide deep explanations if the user explicitly asks "Tell me more" or "Why?".
+5. Reply in the user's language (English, Hindi, or Hinglish).`,
   });
 
   return {
@@ -209,18 +221,25 @@ Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but ac
         // If image is uploaded:
         if (image_data) {
           // Step 1: Try local custom-trained ML model first
-          const mlResult = await analyzeWithLocalML(image_data);
-          
-          if (mlResult && mlResult.diagnosis) {
-            const diag = mlResult.diagnosis;
-            const conf = mlResult.confidence;
-            const advice = diag === 'PNEUMONIA' 
-              ? '\n\n⚠️ **Medical Alert:** The scan suggests Pneumonia. Please consult a pulmonologist immediately.' 
-              : '\n\n✅ The scan appears Normal. Maintain healthy habits and consult a doctor if you feel unwell.';
-              
-            return {
-              output: `**AI Vision Analysis (Custom ML Model)**\nI have analyzed your X-Ray.\n\n**Diagnosis:** ${diag}\n**Confidence:** ${conf}%${advice}`
-            };
+          const modelType = detectModelType(input);
+          const mlResult = await analyzeWithLocalML(image_data, modelType);
+
+          if (mlResult && !mlResult.error) {
+            // ML server responded — inject findings into Groq for intelligent follow-up chat
+            const mlContext = `[MEDICAL IMAGING REPORT - ${mlResult.model_type} Model]\nDiagnosis: ${mlResult.diagnosis}\nConfidence: ${mlResult.confidence}%\nAll Probabilities: ${JSON.stringify(mlResult.all_probabilities)}`;
+
+            const followUpPrompt = input
+              ? `The medical imaging scan was analyzed. Results:\n${mlContext}\n\nPatient question: "${input}"\n\nBased on the ML analysis above, answer the patient's question in a clear, empathetic way. Emphasize consulting a doctor for official diagnosis.`
+              : `The medical imaging scan was analyzed. Results:\n${mlContext}\n\nExplain these findings to the patient in simple language. Emphasize consulting a doctor.`;
+
+            const history = chat_history.slice(-4).map(([role, text]) =>
+              role === "human" ? new HumanMessage(text) : new AIMessage(text)
+            );
+            const response = await agent.invoke({
+              messages: [...history, new HumanMessage(followUpPrompt)],
+            });
+            const final = response.messages[response.messages.length - 1];
+            return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
           }
 
           // Step 2: Fallback to Gemini if local ML is down or fails
