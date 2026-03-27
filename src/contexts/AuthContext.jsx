@@ -169,7 +169,7 @@ export function AuthProvider({ children }) {
   /**
    * register — creates Firebase Auth user AND syncs with Supabase/Firestore
    */
-  const register = async (email, password, role, full_name, phone, institution, extra = {}) => {
+  const register = async ({ email, password, role, full_name, phone, institution, ...extra }) => {
     try {
       console.log("Starting multi-platform registration for:", email);
 

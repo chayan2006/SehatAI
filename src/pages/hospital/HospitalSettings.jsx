@@ -92,13 +92,16 @@ export default function HospitalSettings({ primaryColor = '#00b289', theme }) {
   };
 
   const updateHours = (day, field, value) => {
-    setHospitalData(prev => ({
-      ...prev,
-      operating_hours: {
-        ...prev.operating_hours,
-        [day]: { ...prev.operating_hours[day], [field]: value }
-      }
-    }));
+    setHospitalData(prev => {
+      const currentDay = { open: '09:00', close: '17:00', closed: false, ...(prev.operating_hours[day] || {}) };
+      return {
+        ...prev,
+        operating_hours: {
+          ...prev.operating_hours,
+          [day]: { ...currentDay, [field]: value }
+        }
+      };
+    });
   };
 
   const inputClass = "w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#00b289]/20 bg-slate-50/50 text-sm transition-all";
@@ -251,7 +254,7 @@ export default function HospitalSettings({ primaryColor = '#00b289', theme }) {
           </div>
           <div className="p-6 space-y-3">
             {DAYS.map(day => {
-              const hrs = hospitalData.operating_hours[day] || { open: '09:00', close: '17:00', closed: false };
+              const hrs = { open: '09:00', close: '17:00', closed: false, ...(hospitalData.operating_hours[day] || {}) };
               return (
                 <div key={day} className="flex items-center gap-4 flex-wrap">
                   <span className="w-28 text-xs font-black text-slate-600 uppercase tracking-wider shrink-0">{day}</span>

@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
 import AIChat from '@/components/AIChat';
-import { getHospitalStats } from '@/lib/supabaseService';
+import { getHospitalStats, getPatients } from '@/lib/supabaseService';
 
 import AnalyticsView from '../components/admin/AnalyticsView';
 import ResourcesView from '../components/admin/ResourcesView';
@@ -509,7 +509,22 @@ export default function AdminDashboard({ role, onLogout }) {
 
     // ─── PATIENT MONITORING ───────────────────────────────────────────────────────
     function PatientMonitoringView() {
-        const patients = [
+        const [realPatients, setRealPatients] = useState([]);
+        
+        useEffect(() => {
+            getPatients().then(data => {
+                if (data) setRealPatients(data);
+            });
+        }, []);
+
+        const patients = realPatients.length > 0 ? realPatients.map(p => ({
+            id: p.id,
+            name: p.full_name || p.name || 'Unknown Patient',
+            age: p.age || 45,
+            ward: p.ward || 'General',
+            vitals: `HR: ${p.heart_rate || '--'}bpm • O2: ${p.oxygen_level || '--'}%`,
+            status: p.risk_level === 'high' ? 'critical' : p.risk_level === 'medium' ? 'warning' : 'stable'
+        })) : [
             { id: '#PX-8812', name: 'Marcus Webb', age: 54, ward: 'ICU-A', vitals: 'HR: 142bpm • O2: 94% • BP: 165/98', status: 'critical' },
             { id: '#PX-9004', name: 'Priya Nair', age: 38, ward: 'ICU-B', vitals: 'HR: 88bpm • O2: 97% • BP: 130/82', status: 'warning' },
             { id: '#PX-7721', name: 'James Okafor', age: 67, ward: 'ICU-C', vitals: 'HR: 95bpm • O2: 88% • BP: 120/76', status: 'critical' },

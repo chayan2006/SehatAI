@@ -38,6 +38,8 @@ export default function DoctorPatients() {
   const [patients, setPatients] = useState(initialPatients);
   const [hospitalId, setHospitalId] = useState(null);
   const [isMocking, setIsMocking] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   React.useEffect(() => {
     const initPortal = async () => {
@@ -215,9 +217,27 @@ export default function DoctorPatients() {
             <div className="flex items-center space-x-2">
               <div className="relative w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                <Input type="search" placeholder="Search ID or name..." className="pl-9 h-9 border-slate-200 text-xs" />
+                <Input 
+                  type="search" 
+                  placeholder="Search ID or name..." 
+                  className="pl-9 h-9 border-slate-200 text-xs" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-              <Button variant="outline" size="icon" className="h-9 w-9 border-slate-200"><Filter className="h-4 w-4 text-slate-500" /></Button>
+              <Button 
+                variant={statusFilter !== 'All' ? 'default' : 'outline'} 
+                size="icon" 
+                className={`h-9 w-9 ${statusFilter !== 'All' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'border-slate-200'} `}
+                onClick={() => {
+                  const filters = ['All', 'Critical', 'Warning', 'Stable'];
+                  const currentIndex = filters.indexOf(statusFilter);
+                  const nextIndex = (currentIndex + 1) % filters.length;
+                  setStatusFilter(filters[nextIndex]);
+                }}
+              >
+                <Filter className={`h-4 w-4 ${statusFilter !== 'All' ? 'text-white' : 'text-slate-500'}`} />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -238,16 +258,22 @@ export default function DoctorPatients() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {patients.map((patient) => (
+                {patients
+                  .filter(patient => {
+                    const matchesSearch = String(patient.name || patient.id || '').toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchesStatus = statusFilter === "All" || patient.status === statusFilter;
+                    return matchesSearch && matchesStatus;
+                  })
+                  .map((patient) => (
                   <tr key={patient.id} className="group hover:bg-slate-50/80 transition-all duration-200">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className={`size-10 rounded-full flex items-center justify-center font-bold text-xs ${patient.status === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
-                          {patient.name.split(' ').map(n=>n[0]).join('')}
+                          {(patient.name || 'P').split(' ').map(n=>n[0]).join('')}
                         </div>
                         <div>
-                          <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors uppercase text-[13px] tracking-tight">{patient.name}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{patient.age}y • ID: PX-{patient.id.toString().slice(-4)}</div>
+                          <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors uppercase text-[13px] tracking-tight">{patient.name || 'Unknown Patient'}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{patient.age}y • ID: PX-{String(patient.id || '????').slice(-4)}</div>
                         </div>
                       </div>
                     </td>
@@ -293,7 +319,8 @@ export default function DoctorPatients() {
                                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                         />
                                         <path
-                                          className={`text-${risk.val > 60 ? 'red' : risk.val > 30 ? 'orange' : risk.color}-500 stroke-current`}
+                                          className="stroke-current"
+                                          style={{ color: risk.val > 60 ? '#ef4444' : risk.val > 30 ? '#f97316' : '#10b981' }}
                                           strokeWidth="3"
                                           strokeDasharray={`${risk.val}, 100`}
                                           strokeLinecap="round"
@@ -313,7 +340,7 @@ export default function DoctorPatients() {
                             </div>
                           ))}
                           <div className="ml-2">
-                             <TrendingUp className={`size-4 text-${patient.riskScore > 50 ? 'red' : 'emerald'}-500`} />
+                             <TrendingUp className={`size-4 ${patient.riskScore > 50 ? 'text-red-500' : 'text-emerald-500'}`} />
                           </div>
                         </div>
                       ) : (

@@ -119,8 +119,8 @@ export async function getHospitalStats() {
     { count: totalDoctors },
     { count: pendingTriage }
   ] = await Promise.all([
-    supabase.from('patients').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID),
-    supabase.from('hospital_staff').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID).ilike('role', '%doctor%'),
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'patient'),
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'doctor'),
     supabase.from('triage_records').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID).eq('status', 'Pending Review'),
   ]);
 

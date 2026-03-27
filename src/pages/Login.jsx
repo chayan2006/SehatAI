@@ -93,7 +93,7 @@ export default function Login({ onLogin }) {
 
           <div className="mt-16 flex flex-col items-center gap-4">
             <button 
-              onClick={() => onLogin('patient')}
+              onClick={() => onLogin('patient', 'signup')}
               className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-lg">person_add</span>
