@@ -21,10 +21,10 @@ const STATUS_COLORS = {
 };
 
 const MOCK_RECORDS = [
-  { id: 'm1', patient_name: 'Eleanor Vance', patient_age: 78, type: 'Critical Vitals', description: 'Sustained HR > 110 bpm for 15 minutes. Blood pressure elevated.', ai_action: 'Ambulance Dispatched & Caregiver Notified', status: 'Active', created_at: new Date(Date.now() - 120000).toISOString() },
-  { id: 'm2', patient_name: 'Robert Ford',   patient_age: 82, type: 'Inactivity Threshold', description: 'No movement detected for 49 hours.', ai_action: 'Automated Voice Call Initiated (No Answer)', status: 'Requires Doctor Override', created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'm3', patient_name: 'Alice Smith',   patient_age: 88, type: 'Medication Non-Adherence', description: 'Patient missed heart medication for 3 consecutive days.', ai_action: 'Sent SMS reminders. Escalating to Doctor.', status: 'Pending Review', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'm4', patient_name: 'James Wilson',  patient_age: 62, type: 'Abnormal Sleep Pattern', description: 'SpO2 dropped below 90% multiple times during sleep.', ai_action: 'Logged event. Recommending Sleep Study.', status: 'Pending Review', created_at: new Date(Date.now() - 14400000).toISOString() },
+  { id: 'm1', patient_name: 'Rajesh Kumar', patient_age: 45, type: 'Critical Vitals', description: 'Acute Respiratory Distress - SpO2 84%, HR 122.', ai_action: 'Predicted Sepsis Risk 94%. ICU Pre-alert Sent.', status: 'Active', created_at: new Date(Date.now() - 120000).toISOString() },
+  { id: 'm2', patient_name: 'Anita Sharma', patient_age: 72, type: 'Inactivity Threshold', description: 'Unresponsive for 4 hours - Suspected Stroke.', ai_action: 'Neuro-Trauma Team Mobilized via Sentinel Agent.', status: 'Requires Doctor Override', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 'm3', patient_name: 'Suresh Gupta', patient_age: 29, type: 'Surgical Escalation', description: 'Severe Abdominal Trauma - Internal Bleeding.', ai_action: 'Blood Bank notified for O-negative cross-match.', status: 'Pending Review', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'm4', patient_name: 'Vikram Singh', patient_age: 52, type: 'Cardiac Event', description: 'Troponin T elevated. SpO2 dropped below 90%.', ai_action: 'Logged event. Logged for Urgent Cardiology Consult.', status: 'Pending Review', created_at: new Date(Date.now() - 14400000).toISOString() },
 ];
 
 function timeAgo(str) {
@@ -45,26 +45,19 @@ export default function DoctorTriage() {
   const [processing, setProcessing] = useState({});
   const [form, setForm] = useState({ patient_name: '', patient_age: '', type: '', description: '' });
 
-  const [debugMsg, setDebugMsg] = useState("");
 
   const load = useCallback(async () => {
-    if (!user?.id) { setDebugMsg("User ID is missing from AuthContext!"); return; }
-    setLoading(true);
-    setDebugMsg("Loading started...");
     try {
       const h = await hospitalService.getMyHospital();
-      if (!h) { setDebugMsg("getMyHospital returned falsy!"); return; }
+      if (!h) return;
       setHospitalId(h.id);
-      setDebugMsg("Got hospital: " + h.id);
       
       const data = await triageService.getTriageRecords(h.id);
-      setDebugMsg(`Got ${data?.length} records for ${h.id}. Data: ` + JSON.stringify(data).substring(0, 100));
       
       if (data && data.length > 0) { setRecords(data); setIsMock(false); }
       else { setRecords(MOCK_RECORDS); setIsMock(true); }
     } catch (err) {
       console.error(err);
-      setDebugMsg("Error in load: " + err.message);
       setRecords(MOCK_RECORDS); setIsMock(true);
     } finally {
       setLoading(false);
@@ -137,11 +130,6 @@ export default function DoctorTriage() {
         </div>
       </div>
 
-      {debugMsg && (
-        <div className="p-4 bg-red-100 border-2 border-red-500 text-red-900 font-mono text-xs rounded-xl break-all">
-          <strong>DEBUG INFO:</strong> {debugMsg}
-        </div>
-      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

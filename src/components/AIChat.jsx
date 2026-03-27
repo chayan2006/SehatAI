@@ -50,7 +50,8 @@ export default function AIChat({
         const r = new SR();
         r.continuous = false;
         r.interimResults = true;
-        r.lang = 'en-US';
+        // Support both English and Hindi for STT
+        r.lang = 'hi-IN'; // Default to Hindi for the demo, or en-US if preferred
 
         r.onresult = (e) => {
             let t = '';
@@ -141,9 +142,13 @@ export default function AIChat({
                 window.speechSynthesis.cancel();
                 const cleanText = response.output.replace(/[*_#`]/g, '');
                 const utterance = new SpeechSynthesisUtterance(cleanText);
-                utterance.lang = 'en-US';
-                utterance.rate = 1.05;
-                utterance.pitch = 1.2;
+                
+                // Simple detection: if text contains Devanagari characters, use hi-IN
+                const isHindi = /[\u0900-\u097F]/.test(cleanText);
+                utterance.lang = isHindi ? 'hi-IN' : 'en-US';
+                
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
 
                 utterance.onend = () => {
                     if (voiceModeRef.current) setTimeout(() => startListening(), 400);
