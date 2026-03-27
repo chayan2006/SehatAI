@@ -57,12 +57,12 @@ export default function App() {
 
   // When user picks a portal from the gateway, log out any existing session first
   // so the auth-redirect useEffect doesn't bounce them back to their old dashboard.
-  const handlePortalSelect = async (selectedRole) => {
+  const handlePortalSelect = async (selectedRole, initialMode = 'signin') => {
     if (user) {
       await logout();
     }
     if (selectedRole === 'admin') { navigate('/admin/login'); return; }
-    navigate(`/portal/${selectedRole}`);
+    navigate(`/portal/${selectedRole}${initialMode === 'signup' ? '?mode=signup' : ''}`);
   };
 
   return (

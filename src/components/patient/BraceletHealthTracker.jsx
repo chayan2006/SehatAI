@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function BraceletHealthTracker({ isRegistered, onRegister }) {
+
+export default function BraceletHealthTracker({ isRegistered, onRegister, onLearnMore }) {
   const [deviceId, setDeviceId] = useState('');
   const [vitals, setVitals] = useState({
     heartRate: 72,
@@ -67,7 +68,10 @@ export default function BraceletHealthTracker({ isRegistered, onRegister }) {
             <button className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl text-sm shadow-xl transition-transform active:scale-95">
               Notify Me on Launch
             </button>
-            <button className="w-full py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm border border-slate-200 dark:border-slate-700 shadow-sm transition-transform active:scale-95">
+            <button 
+              onClick={onLearnMore}
+              className="w-full py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm border border-slate-200 dark:border-slate-700 shadow-sm transition-transform active:scale-95"
+            >
               Learn More About SEHAT-Link
             </button>
           </div>
