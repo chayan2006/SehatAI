@@ -112,7 +112,9 @@ export default function AIChat({
         const userMsg = { role: 'human', text: text || "Analyzed attachment", timestamp: Date.now(), image: imagePreview };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
+        
         const currentImage = imagePreview;
+        const currentFile = selectedImage;
         setImagePreview(null);
         setSelectedImage(null);
 
@@ -123,10 +125,45 @@ export default function AIChat({
         }
 
         try {
+            let llmInput = text || "What does this image show?";
+            let imageForAgent = currentImage;
+
+            // If an image was uploaded, route it through our ML Model first
+            if (currentFile) {
+                const formData = new FormData();
+                formData.append('file', currentFile);
+                
+                try {
+                    const res = await fetch('http://localhost:8000/analyze-injury', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (res.ok) {
+                        const mlData = await res.json();
+                        // Inject the ML results into the LLM prompt for a synthesized response
+                        llmInput += `\n\n[SYSTEM INSTRUCTION: The user uploaded an image of a potential injury. Our specialized clinical computer vision model analyzed the image and found the following:
+- Condition/Prediction: ${mlData.top_prediction.replace(/_/g, ' ')}
+- Model Confidence: ${mlData.confidence}%
+- Severity Level: ${mlData.severity}
+- Recommended First Aid: ${mlData.first_aid_tip}
+
+Your Task: Explain this diagnosis to the patient in a friendly, reassuring, and professional medical assistant tone. Provide the first aid tips. Keep it concise and easy to read using markdown bullet points. Add a disclaimer that this is AI-assisted and they should see a doctor if it's severe. Do NOT mention that a 'computer vision model' or 'System Instruction' gave you this data. Present it simply as your own clinical analysis of the photo.]`;
+                        
+                        // Prevent patientAgent.js from throwing the image straight to Gemini,
+                        // force it to use Groq LLM to answer the text prompt!
+                        imageForAgent = null;
+                    }
+                } catch (mlErr) {
+                    console.error("Local ML Model failed or is offline:", mlErr);
+                    // Fall back to native Groq/Gemini Vision if the local model fails
+                }
+            }
+
             const response = await agentExecutor.invoke({
-                input: text,
+                input: llmInput,
                 chat_history: messages.map(m => [m.role, m.text]).slice(-10),
-                image_data: currentImage
+                image_data: imageForAgent
             });
 
             const aiMsg = { 

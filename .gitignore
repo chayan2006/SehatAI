@@ -7,3 +7,9 @@ coverage/
 .env*
 !.env.example
 stdout
+ml_injury_model/HAM10000/
+ml_injury_model/data/
+ml_injury_model/dataset/
+ml_injury_model/kaggle_raw/
+ml_injury_model/__pycache__/
+*.pth
