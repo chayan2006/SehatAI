@@ -129,17 +129,31 @@ const tools = [
 
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
 async function analyzeWithLocalML(imageDataUrl, modelType = "hair_model") {
+  const url = `https://sehatai-ml-server.onrender.com/analyze/${modelType}`;
   try {
-    const res = await fetch(`https://sehatai-ml-server.onrender.com/analyze/${modelType}`, {
+    // Attempt 1: Standard 35s timeout
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
-      signal: AbortSignal.timeout(35000) // 35 second timeout — Render free tier takes ~30s to wake up
+      signal: AbortSignal.timeout(35000) 
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null; // Server not running or model not found — fall back to Gemini
+    if (res.ok) return await res.json();
+    return { error: `Server error: ${res.status}` };
+  } catch (e) {
+    if (e.name === 'TimeoutError') {
+      // Automatic Attempt 2: Longer timeout for Render cold-starts (60s)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: imageDataUrl }),
+          signal: AbortSignal.timeout(60000) 
+        });
+        if (res.ok) return await res.json();
+      } catch { /* Final fail */ }
+    }
+    return null; // Triggers "Server is waking up" message in the UI
   }
 }
 

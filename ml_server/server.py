@@ -147,10 +147,13 @@ def analyze_legacy():
     return analyze(default_model)
 
 
-if __name__ == "__main__":
-    load_all_models()
-    if not MODELS:
-        print("\n🔴 No models found! Please train them first.")
+# Initialize models at startup for Gunicorn
+load_all_models()
+if not MODELS:
+    print("\n🔴 No models found! Please ensure your weights (.pth) are in the ml_server/model folder.")
+else:
+    print(f"🚀 Loaded {len(MODELS)} models for production serving.")
 
+if __name__ == "__main__":
     print(f"\n🚀 SehatAI Multi-Model Server running at http://localhost:5001")
     app.run(host="0.0.0.0", port=5001, debug=False)
