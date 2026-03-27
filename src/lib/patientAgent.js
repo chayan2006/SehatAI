@@ -130,7 +130,7 @@ const tools = [
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
 async function analyzeWithLocalML(imageDataUrl, modelType = "hair_model") {
   try {
-    const res = await fetch(`http://localhost:5001/analyze/${modelType}`, {
+    const res = await fetch(`https://sehatai-ml-server.onrender.com/analyze/${modelType}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
