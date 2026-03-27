@@ -155,5 +155,8 @@ def analyze_legacy():
 
 
 if __name__ == "__main__":
-    print(f"\n🚀 SehatAI Multi-Model Server running at http://localhost:5001")
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    print(f"\n🚀 SehatAI Multi-Model Server trying to start on http://0.0.0.0:5001")
+    try:
+        app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    except Exception as e:
+        print(f"CRITICAL ERROR: {e}")
