@@ -30,7 +30,6 @@ export default function PatientDashboard({ onLogout }) {
   const { user } = useAuth();  // real logged-in user
   const [agentExecutor, setAgentExecutor] = useState(null);
   const [isBraceletRegistered, setIsBraceletRegistered] = useState(false);
-  const [showSehatLink, setShowSehatLink] = useState(false);
   const [braceletId, setBraceletId] = useState('');
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -305,8 +304,6 @@ export default function PatientDashboard({ onLogout }) {
                 isBraceletRegistered={isBraceletRegistered} 
                 setIsBraceletRegistered={setIsBraceletRegistered} 
                 setBraceletId={setBraceletId} 
-                showSehatLink={showSehatLink}
-                setShowSehatLink={setShowSehatLink}
               />
             } />
             <Route path="appointments" element={<PatientAppointments onNavigate={(id) => navigate(`/patient/${id}`)} />} />
@@ -353,7 +350,7 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId, showSehatLink, setShowSehatLink }) {
+function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
 
 
@@ -467,18 +464,14 @@ function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegiste
           )}
         </div>
         
-        {showSehatLink ? (
-          <SehatLinkPage onBack={() => setShowSehatLink(false)} />
-        ) : (
-          <BraceletHealthTracker
-            isRegistered={isBraceletRegistered}
-            onRegister={(id) => {
-              setIsBraceletRegistered(true);
-              setBraceletId(id);
-            }}
-            onLearnMore={() => setShowSehatLink(true)}
-          />
-        )}
+        <BraceletHealthTracker
+          isRegistered={isBraceletRegistered}
+          onRegister={(id) => {
+            setIsBraceletRegistered(true);
+            setBraceletId(id);
+          }}
+          onLearnMore={() => onNavigate('sehat-link')}
+        />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
