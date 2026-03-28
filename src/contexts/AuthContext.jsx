@@ -28,7 +28,13 @@ export function AuthProvider({ children }) {
 
   // Rehydrate session automatically via Firebase listener
   useEffect(() => {
+    // Safety timeout: if Firebase doesn't respond in 4s, unblock the UI
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(timeout); // Firebase responded — cancel the timeout
       if (firebaseUser) {
         try {
           // Fetch extended role/name from Firestore
@@ -78,7 +84,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => { unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   /**
