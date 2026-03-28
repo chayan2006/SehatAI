@@ -91,12 +91,11 @@ export function AuthProvider({ children }) {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
     
-    // 2. Log into Supabase Auth (Sync)
+    // 2. Log into Supabase Auth (Sync) — best effort, don't block Firebase login
     const { error: supabaseError } = await supabase.auth.signInWithPassword({ email, password });
     if (supabaseError) {
-      console.error("Supabase login failed:", supabaseError.message);
-      await signOut(auth); // Rollback Firebase if Supabase fails
-      throw new Error(`Cloud Sync Error: ${supabaseError.message}`);
+      console.warn("Supabase login sync failed (non-blocking):", supabaseError.message);
+      // Do NOT rollback Firebase — user can still use the app via Firebase auth
     }
 
     // 3. Fetch role to ensure they are logging into the correct portal
@@ -198,6 +197,7 @@ export function AuthProvider({ children }) {
 
       // 3. Create profile in Firestore (Portal Source of Truth)
       const userData = {
+        id: firebaseUid,
         uid: firebaseUid,
         supabase_uid: supabaseUid || null,
         email,

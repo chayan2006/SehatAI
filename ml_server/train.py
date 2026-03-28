@@ -172,7 +172,7 @@ for epoch in range(1, EPOCHS + 1):
     # Save best model
     if val_acc > best_val_acc:
         best_val_acc = val_acc
-        save_path = os.path.join(MODEL_DIR, "hair_model.pth")
+        save_path = os.path.join(MODEL_DIR, "xray_model.pth")
         torch.save({
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
@@ -185,4 +185,4 @@ for epoch in range(1, EPOCHS + 1):
     scheduler.step(val_acc)
 
 print(f"\n🎉 Training complete! Best Validation Accuracy: {best_val_acc:.2f}%")
-print(f"   Model saved at: {os.path.join(MODEL_DIR, 'hair_model.pth')}")
+print(f"   Model saved at: {os.path.join(MODEL_DIR, 'xray_model.pth')}")
