@@ -31,39 +31,41 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Fetch extended role/name from Firestore
           const docRef = doc(db, 'users', firebaseUser.uid);
-          const docSnap = await getDoc(docRef);
           
-          let userData = null;
-          if (docSnap.exists()) {
+          // Retry up to 4 times with 600ms delay — handles race condition
+          // where Google sign-up writes the Firestore doc but the listener fires first.
+          let docSnap = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            docSnap = await getDoc(docRef);
+            if (docSnap.exists()) break;
+            if (attempt < 3) await new Promise(r => setTimeout(r, 600));
+          }
+
+          if (docSnap && docSnap.exists()) {
             const data = docSnap.data();
-            userData = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email,
-              role: data.role,
-              full_name: data.full_name,
-              phone: data.phone || '',
-              avatar_url: data.avatar_url || null,
-              hospital_id: data.hospital_id || null,
-              primaryHospitalId: data.primaryHospitalId || null
-            };
-            setUser(userData);
-          } else {
-            // Document doesn't exist yet (could be race condition during signup)
-            // We set a minimal user object but DON'T default the role to patient immediately
             setUser({
               id: firebaseUser.uid,
               email: firebaseUser.email,
-              role: 'loading', 
-              full_name: firebaseUser.displayName || 'Authenticating...',
+              role: data.role,
+              full_name: data.full_name || firebaseUser.displayName,
+              phone: data.phone || '',
+              avatar_url: data.avatar_url || firebaseUser.photoURL || null,
+              hospital_id: data.hospital_id || null,
+              primaryHospitalId: data.primaryHospitalId || null
+            });
+          } else {
+            // Document truly doesn't exist after retries — set minimal user
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: 'loading',
+              full_name: firebaseUser.displayName || 'User',
               is_new_user: true
             });
           }
 
           setToken(firebaseUser.uid);
-
-          // Request Notification Permission and Store Token
           requestNotificationPermission(firebaseUser.uid);
 
         } catch (error) {

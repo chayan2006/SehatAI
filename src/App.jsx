@@ -27,7 +27,8 @@ function LoadingScreen() {
 /** Wrapper: redirects to / if not authed or wrong role */
 function ProtectedRoute({ role: requiredRole, children }) {
   const { user, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
+  // Show spinner while auth is resolving OR while role is still being fetched
+  if (loading || (user && user.role === 'loading')) return <LoadingScreen />;
   if (!user || user.role !== requiredRole) return <Navigate to="/" replace />;
   return children;
 }
