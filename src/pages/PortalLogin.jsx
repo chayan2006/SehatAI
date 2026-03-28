@@ -85,9 +85,11 @@ export default function PortalLogin({ onLogin }) {
     setLoading(true);
     const internalRole = getInternalRole(role);
     try {
-      const extraData = role === "Hospital" && formData.hospital_id 
-        ? { hospital_id: formData.hospital_id, full_name: formData.full_name } 
-        : {};
+      const extraData = mode === "signup" ? {
+        full_name: formData.full_name,
+        phone: formData.phone,
+        hospital_id: role === "Hospital" ? formData.hospital_id : null
+      } : {};
       await loginWithGoogle(internalRole, extraData);
       onLogin(internalRole);
     } catch (err) {
@@ -120,14 +122,37 @@ export default function PortalLogin({ onLogin }) {
           setError("You must accept the consent to register."); setLoading(false); return;
         }
 
-        // Generate & send OTP
-        const otp = generateOTP();
-        setOtpRef(otp);
-        await sendOtp(formData.email, formData.full_name, otp);
-        setStep("otp");
-        setResendCooldown(60);
-        setOtpInput(["", "", "", "", "", ""]);
-        setOtpError("");
+        // Directly Register User (OTP bypassed)
+        const registerData = {
+          email: formData.email,
+          password: formData.password,
+          role: internalRole,
+          full_name: formData.full_name,
+          phone: formData.phone,
+          institution: formData.institution,
+        };
+
+        if (internalRole === "patient") {
+          Object.assign(registerData, {
+            dob: formData.dob,
+            blood_group: formData.blood_group,
+            gender: formData.gender,
+            city: formData.city,
+            consent: formData.consent,
+            weight: formData.weight,
+            height: formData.height,
+            recent_injury: formData.recent_injury,
+          });
+        } else if (internalRole === "doctor") {
+          Object.assign(registerData, {
+            hospital_id: formData.hospital_id,
+          });
+        }
+
+        await register(registerData);
+        
+        // Let the user know and immediately log them in
+        onLogin(internalRole, formData.full_name);
       }
     } catch (err) {
       setError(err.message || "Authentication failed. Please try again.");

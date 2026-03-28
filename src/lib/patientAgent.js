@@ -128,32 +128,23 @@ const tools = [
 ];
 
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
-async function analyzeWithLocalML(imageDataUrl, modelType = "hair_model") {
-  const url = `https://sehatai-ml-server.onrender.com/analyze/${modelType}`;
+async function analyzeWithLocalML(imageDataUrl, modelType = "xray_model") {
+  // Use Render-hosted ML server in production. Falls back to Gemini if unreachable.
+  const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'https://sehatai-ml-server.onrender.com';
+  const url = `${ML_SERVER_URL}/analyze/${modelType}`;
   try {
-    // Attempt 1: Standard 35s timeout
+    // Attempt with a shorter timeout (6s). We pinged the server earlier to wake it up, 
+    // but if it's still asleep, we don't want the user waiting 50s. We'll fallback to Gemini quickly.
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
-      signal: AbortSignal.timeout(35000) 
+      signal: AbortSignal.timeout(6000) 
     });
     if (res.ok) return await res.json();
     return { error: `Server error: ${res.status}` };
   } catch (e) {
-    if (e.name === 'TimeoutError') {
-      // Automatic Attempt 2: Longer timeout for Render cold-starts (60s)
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: imageDataUrl }),
-          signal: AbortSignal.timeout(60000) 
-        });
-        if (res.ok) return await res.json();
-      } catch { /* Final fail */ }
-    }
-    return null; // Triggers "Server is waking up" message in the UI
+    return { error: `Timeout or connection failed: ${e.message}` };
   }
 }
 
@@ -163,7 +154,7 @@ function detectModelType(input = "") {
   if (text.includes("chest") || text.includes("lung") || text.includes("xray") || text.includes("x-ray")) return "xray_model";
   if (text.includes("skin") || text.includes("mole") || text.includes("spot")) return "health_model";
   if (text.includes("injury") || text.includes("wound") || text.includes("cut") || text.includes("burn") || text.includes("bruise")) return "injury_model";
-  return "hair_model"; // Default to hair since user just trained it
+  return "xray_model"; // Default to xray since we are testing chest x-rays
 }
 
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -256,8 +247,9 @@ STRICT STYLE RULES:
             return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
           }
 
-          // Step 2: ML server is sleeping (Render free tier cold-start takes ~30-50s)
-          return { output: `⏳ **The AI Analysis Server is waking up!**\n\nThe ML server was asleep (it's on the free tier). It usually takes **30-50 seconds** to start.\n\n**Please wait 30 seconds and then upload your image again.** After the first wake-up, it stays active for 15 minutes! 🚀` };
+          // If the custom ML server actually fails (after 6s), fall back to Gemini multimodal
+          const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
+          return { output: `*(Note: Used general AI fallback since custom ML server was unreachable)*\n\n${geminiAnalysis}` };
         }
 
         // Text chat → Groq (free, unlimited)

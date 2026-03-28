@@ -89,7 +89,7 @@ export default function DoctorDashboard({ onLogout }) {
     fetchStats();
     fetchHospitalInfo();
     fetchUnreadCount();
-  }, [user]);
+  }, [user?.id]);
 
   const dashboardStyle = {};
 
@@ -123,7 +123,7 @@ export default function DoctorDashboard({ onLogout }) {
               </button>
             </div>
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800"></div>
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={onLogout}>
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/doctor/settings')}>
               <div className="text-right hidden sm:block">
                 <p className="text-xs font-black text-slate-900 dark:text-white leading-none">{userName}</p>
                 <p className="text-[10px] text-primary font-black uppercase tracking-tighter mt-1">{hospitalInfo?.hospital_name || "Chief Medical Officer"}</p>

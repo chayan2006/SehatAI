@@ -5,10 +5,12 @@ import {
   Award, Activity, Key, Globe, Camera
 } from 'lucide-react';
 import { authService, hospitalService } from '@/database';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 
 export default function Settings() {
   const { addToast } = useToast();
+  const { logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [hospital, setHospital] = useState(null);
@@ -43,8 +45,12 @@ export default function Settings() {
   };
 
   const handleSignOut = async () => {
-    await authService.signOut();
-    window.location.reload();
+    try {
+      await logout(); // Signs out of both Firebase AND Supabase properly
+    } catch (err) {
+      console.error('Logout error:', err);
+      window.location.href = '/'; // Fallback: force navigate to home
+    }
   };
 
   if (loading) return (

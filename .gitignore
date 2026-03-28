@@ -16,5 +16,8 @@ ml_server/venv/
 ml_server/__pycache__/
 ml_lung_model/dataset/
 ml_lung_model/__pycache__/
+# Ignore new model weights
+ml_lung_model/*.pth
+ml_injury_model/*.pth
 # Allow ML model weights in the server folder
 !ml_server/model/*.pth
