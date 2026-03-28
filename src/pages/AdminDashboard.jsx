@@ -1728,7 +1728,7 @@ export default function AdminDashboard({ role, onLogout }) {
                             }
                         },
                         { icon: 'lock_reset', label: 'Reset Token', action: () => { showToast('Session token rotated — sign-in link sent to your email.', 'info'); setShowSettings(false); } },
-                        { icon: 'logout', label: 'Sign Out', action: () => window.location.reload() },
+                        { icon: 'logout', label: 'Sign Out', action: () => { setShowSettings(false); onLogout(); } },
                     ].map((item, i) => (
                         <button key={i} onClick={item.action} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'none', border: 'none', borderBottom: i < 3 ? '1px solid #f1f5f9' : 'none', cursor: 'pointer', fontSize: 14, color: '#334155', fontWeight: 500 }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>{item.icon}</span>
