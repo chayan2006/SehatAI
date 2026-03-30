@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
+import { initN8nAgent } from '@/lib/n8nAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
 import AIChat from '@/components/AIChat';
 import { getHospitalStats, getPatients } from '@/lib/supabaseService';
@@ -232,6 +233,20 @@ export default function AdminDashboard({ role, onLogout }) {
     useEffect(() => {
 
         const setupAgent = async () => {
+            const n8nUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+            if (n8nUrl) {
+                try {
+                    const executor = await initN8nAgent({ 
+                        webhookUrl: n8nUrl, 
+                        sessionId: "admin-session" 
+                    });
+                    setAgentExecutor(executor);
+                    return;
+                } catch (err) {
+                    console.error("n8n Init Error:", err);
+                }
+            }
+
             const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env?.GROQ_API_KEY : undefined);
             if (!apiKey) return;
 

@@ -69,7 +69,8 @@ export default function PatientDashboard({ onLogout }) {
     setupAgent();
 
     // Fire-and-forget: pre-warm ML server + send dashboard notification in background
-    fetch('https://sehatai-ml-server.onrender.com/').catch(() => {});
+    const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
+    fetch(ML_SERVER_URL).catch(() => {});
     if (user?.email) {
       sendEmailNotification({ type: 'dashboard', email: user.email }).catch(() => {});
     }

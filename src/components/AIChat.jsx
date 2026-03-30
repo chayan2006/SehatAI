@@ -45,8 +45,9 @@ export default function AIChat({
     // Wake up the ML Server as soon as the chat widget opens
     useEffect(() => {
         if (isOpen) {
-            // Fire-and-forget request to wake Render cold-start without user waiting later
-            fetch('https://sehatai-ml-server.onrender.com/').catch(() => {});
+            // Fire-and-forget request to wake cold-start without user waiting later
+            const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
+            fetch(ML_SERVER_URL).catch(() => {});
         }
     }, [isOpen]);
 
@@ -137,38 +138,7 @@ export default function AIChat({
             let llmInput = text || "What does this image show?";
             let imageForAgent = currentImage;
 
-            // If an image was uploaded, route it through our ML Model first
-            if (currentFile) {
-                const formData = new FormData();
-                formData.append('file', currentFile);
-                
-                try {
-                    const ML_URL = import.meta.env.VITE_ML_SERVER_URL || 'https://sehatai-ml-server.onrender.com';
-                    const res = await fetch(`${ML_URL}/analyze-image`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (res.ok) {
-                        const mlData = await res.json();
-                        // Inject the ML results into the LLM prompt for a synthesized response
-                        llmInput += `\n\n[SYSTEM INSTRUCTION: The user uploaded an image of a potential injury. Our specialized clinical computer vision model analyzed the image and found the following:
-- Condition/Prediction: ${mlData.top_prediction.replace(/_/g, ' ')}
-- Model Confidence: ${mlData.confidence}%
-- Severity Level: ${mlData.severity}
-- Recommended First Aid: ${mlData.first_aid_tip}
-
-Your Task: Explain this diagnosis to the patient in a friendly, reassuring, and professional medical assistant tone. Provide the first aid tips. Keep it concise and easy to read using markdown bullet points. Add a disclaimer that this is AI-assisted and they should see a doctor if it's severe. Do NOT mention that a 'computer vision model' or 'System Instruction' gave you this data. Present it simply as your own clinical analysis of the photo.]`;
-                        
-                        // Prevent patientAgent.js from throwing the image straight to Gemini,
-                        // force it to use Groq LLM to answer the text prompt!
-                        imageForAgent = null;
-                    }
-                } catch (mlErr) {
-                    console.error("Local ML Model failed or is offline:", mlErr);
-                    // Fall back to native Groq/Gemini Vision if the local model fails
-                }
-            }
+            // The image will be handled internally by agentExecutor (patientAgent.js)
 
             const response = await agentExecutor.invoke({
                 input: llmInput,

@@ -130,7 +130,7 @@ const tools = [
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
 async function analyzeWithLocalML(imageDataUrl, modelType = "xray_model") {
   // Use Render-hosted ML server in production. Falls back to Gemini if unreachable.
-  const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'https://sehatai-ml-server.onrender.com';
+  const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
   const url = `${ML_SERVER_URL}/analyze/${modelType}`;
   try {
     // Attempt with a shorter timeout (6s). We pinged the server earlier to wake it up, 

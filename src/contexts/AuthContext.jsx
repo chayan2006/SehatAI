@@ -1,293 +1,86 @@
-/**
- * AuthContext — Firebase implementation.
- *
- * Provides the logged-in user across all 3 portals using Firebase Auth
- * and Firestore for extended user data.
- */
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '@/lib/firebase';
-import { supabase } from '@/database/supabaseClient';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut 
-} from 'firebase/auth';
-import { messaging } from '@/lib/firebase';
-import { getToken } from 'firebase/messaging';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null); // Extended user object from Firestore
-  const [token, setToken]     = useState(null); // Firebase user UID
+  const [user, setUser]       = useState(null);
+  const [token, setToken]     = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Rehydrate session automatically via Firebase listener
+  // Restore mock session from sessionStorage to survive page reloads
   useEffect(() => {
-    // Safety timeout: if Firebase doesn't respond in 4s, unblock the UI
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      clearTimeout(timeout); // Firebase responded — cancel the timeout
-      if (firebaseUser) {
-        try {
-          const docRef = doc(db, 'users', firebaseUser.uid);
-          
-          // Retry up to 4 times with 600ms delay — handles race condition
-          // where Google sign-up writes the Firestore doc but the listener fires first.
-          let docSnap = null;
-          for (let attempt = 0; attempt < 4; attempt++) {
-            docSnap = await getDoc(docRef);
-            if (docSnap.exists()) break;
-            if (attempt < 3) await new Promise(r => setTimeout(r, 600));
-          }
-
-          if (docSnap && docSnap.exists()) {
-            const data = docSnap.data();
-            setUser({
-              id: firebaseUser.uid,
-              email: firebaseUser.email,
-              role: data.role,
-              full_name: data.full_name || firebaseUser.displayName,
-              phone: data.phone || '',
-              avatar_url: data.avatar_url || firebaseUser.photoURL || null,
-              hospital_id: data.hospital_id || null,
-              primaryHospitalId: data.primaryHospitalId || null
-            });
-          } else {
-            // Document truly doesn't exist after retries — set minimal user
-            setUser({
-              id: firebaseUser.uid,
-              email: firebaseUser.email,
-              role: 'loading',
-              full_name: firebaseUser.displayName || 'User',
-              is_new_user: true
-            });
-          }
-
-          setToken(firebaseUser.uid);
-          requestNotificationPermission(firebaseUser.uid);
-
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setUser(null);
-          setToken(null);
-        }
-      } else {
-        setUser(null);
-        setToken(null);
+    const savedUser = sessionStorage.getItem('sehat_mock_user');
+    if (savedUser) {
+      try {
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        setToken(u.id);
+      } catch (e) {
+        console.error("Failed to parse mock session");
       }
-      setLoading(false);
-    });
-
-    return () => { unsubscribe(); clearTimeout(timeout); };
+    }
+    setLoading(false);
   }, []);
 
-  /**
-   * login — authenticates with Firebase Auth.
-   * Note: We don't return the extended user immediately here; 
-   * the onAuthStateChanged listener handles population.
-   */
   const login = async (email, password, expectedRole) => {
-    // 1. Log into Firebase Auth
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const uid = userCredential.user.uid;
+    // Generate a temporary mock user
+    const mockUser = {
+      id: 'mock-uid-' + Date.now(),
+      email: email,
+      role: expectedRole || 'patient',
+      full_name: email.split('@')[0],
+      phone: '',
+      medicalProfileComplete: true,
+    };
     
-    // 2. Log into Supabase Auth (Sync) — best effort, don't block Firebase login
-    const { error: supabaseError } = await supabase.auth.signInWithPassword({ email, password });
-    if (supabaseError) {
-      console.warn("Supabase login sync failed (non-blocking):", supabaseError.message);
-      // Do NOT rollback Firebase — user can still use the app via Firebase auth
-    }
-
-    // 3. Fetch role to ensure they are logging into the correct portal
-    const docSnap = await getDoc(doc(db, 'users', uid));
-    if (docSnap.exists()) {
-      const actualRole = docSnap.data().role;
-      if (expectedRole && actualRole !== expectedRole) {
-        // Sign them out immediately if wrong portal
-        await signOut(auth);
-        await supabase.auth.signOut();
-        throw new Error('Wrong portal for this account');
-      }
-    } else {
-      throw new Error('User profile missing in database');
-    }
+    // Save state
+    setUser(mockUser);
+    setToken(mockUser.id);
+    sessionStorage.setItem('sehat_mock_user', JSON.stringify(mockUser));
     
-    // Auth state listener handles setUser
-    return userCredential.user;
+    return mockUser;
   };
 
-  /**
-   * loginWithGoogle — authenticates with Google.
-   * If the user is new, we create their Firestore profile with the expected role.
-   */
   const loginWithGoogle = async (expectedRole, extraData = {}) => {
-    const provider = new GoogleAuthProvider();
-    const userCredential = await signInWithPopup(auth, provider);
-    const firebaseUser = userCredential.user;
+    const mockUser = {
+      id: 'mock-uid-' + Date.now(),
+      email: 'googleuser@mock.com',
+      role: expectedRole || 'patient',
+      full_name: extraData.full_name || 'Google User',
+      ...extraData,
+      medicalProfileComplete: true,
+    };
     
-    // Check if Firestore profile exists
-    const docRef = doc(db, 'users', firebaseUser.uid);
-    const docSnap = await getDoc(docRef);
+    setUser(mockUser);
+    setToken(mockUser.id);
+    sessionStorage.setItem('sehat_mock_user', JSON.stringify(mockUser));
     
-    if (!docSnap.exists()) {
-      // New user via Google — create their profile
-      const role = expectedRole || 'patient'; 
-      const newUserData = {
-        email: firebaseUser.email,
-        role: role,
-        full_name: extraData.full_name || firebaseUser.displayName || 'Google User',
-        phone: firebaseUser.phoneNumber || '',
-        avatar_url: firebaseUser.photoURL || null,
-        created_at: new Date().toISOString(),
-        ...extraData
-      };
-      await setDoc(docRef, newUserData);
-
-      // Create portal-specific collections
-      if (role === 'patient') {
-        await setDoc(doc(db, 'patients', firebaseUser.uid), { user_id: firebaseUser.uid });
-      } else if (role === 'doctor') {
-        await setDoc(doc(db, 'doctors', firebaseUser.uid), { user_id: firebaseUser.uid, is_available: true });
-      }
-
-      // Explicitly set user state to avoid race condition with listener
-      setUser({ id: firebaseUser.uid, ...newUserData });
-    } else {
-      // Existing user — verify role matches the portal
-      const actualRole = docSnap.data().role;
-      if (expectedRole && actualRole !== expectedRole) {
-        await signOut(auth);
-        throw new Error(`This Google account is registered as a ${actualRole}. Please use the correct portal.`);
-      }
-      setUser({ id: firebaseUser.uid, email: firebaseUser.email, ...docSnap.data() });
-    }
-    
-    return firebaseUser;
+    return mockUser;
   };
 
-  /**
-   * register — creates Firebase Auth user AND syncs with Supabase/Firestore
-   */
   const register = async ({ email, password, role, full_name, phone, institution, ...extra }) => {
-    try {
-      console.log("Starting multi-platform registration for:", email);
-
-      // 1. Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const firebaseUid = userCredential.user.uid;
-
-      // 2. Create user in Supabase Auth (Sync)
-      const { data: supabaseAuth, error: supabaseError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: full_name,
-            role: role || 'patient'
-          }
-        }
-      });
-
-      if (supabaseError) {
-        console.error("Supabase signup failed:", supabaseError.message);
-        // We keep Firebase user but log the sync error
-      }
-
-      const supabaseUid = supabaseAuth?.user?.id;
-
-      // 3. Create profile in Firestore (Portal Source of Truth)
-      const userData = {
-        id: firebaseUid,
-        uid: firebaseUid,
-        supabase_uid: supabaseUid || null,
-        email,
-        role: role || 'patient',
-        full_name,
-        phone: phone || '',
-        institution: institution || '',
-        ...extra,
-        created_at: new Date().toISOString(),
-        medicalProfileComplete: false
-      };
-
-      await setDoc(doc(db, 'users', firebaseUid), userData);
-
-      // 4. Create profile in Supabase (AI/Reports Source of Truth)
-      if (supabaseUid) {
-        try {
-          await supabase.from('profiles').upsert({
-            id: supabaseUid,
-            email,
-            role: role || 'patient',
-            full_name,
-            firebase_uid: firebaseUid,
-            hospital_name: role === 'hospital' ? institution : null,
-            status: 'active'
-          });
-
-          // Role-specific Supabase records
-          if (role === 'patient') {
-            await supabase.from('patients').upsert({ user_id: supabaseUid });
-            await setDoc(doc(db, 'patients', firebaseUid), { medicalProfileComplete: false });
-          } else if (role === 'hospital') {
-            await supabase.from('hospitals').upsert({ user_id: supabaseUid, name: institution || full_name });
-          }
-        } catch (sErr) {
-          console.warn("Supabase data sync encountered an issue:", sErr.message);
-        }
-      }
-
-      // 5. Update local state
-      setUser(userData);
-      return userCredential.user;
-
-    } catch (error) {
-      console.error("Registration failed:", error);
-      throw error;
-    }
+    const mockUser = {
+      id: 'mock-uid-' + Date.now(),
+      email: email,
+      role: role || 'patient',
+      full_name: full_name || email.split('@')[0],
+      phone: phone || '',
+      institution: institution || '',
+      ...extra,
+      medicalProfileComplete: true,
+    };
+    
+    setUser(mockUser);
+    setToken(mockUser.id);
+    sessionStorage.setItem('sehat_mock_user', JSON.stringify(mockUser));
+    
+    return mockUser;
   };
 
   const logout = async () => {
-    await signOut(auth);
-    await supabase.auth.signOut();
     setUser(null);
     setToken(null);
-  };
-
-  /**
-   * requestNotificationPermission — asks browser for permission
-   * and saves the FCM token to Firestore.
-   */
-  const requestNotificationPermission = async (uid) => {
-    if (!messaging) return;
-    
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        const fcmToken = await getToken(messaging, {
-          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
-        });
-        
-        if (fcmToken) {
-          console.log('FCM Token generated:', fcmToken);
-          // Save to user profile in Firestore
-          await updateDoc(doc(db, 'users', uid), {
-            fcm_token: fcmToken,
-            last_token_update: new Date().toISOString()
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error getting notification permission:', error);
-    }
+    sessionStorage.removeItem('sehat_mock_user');
   };
 
   return (
