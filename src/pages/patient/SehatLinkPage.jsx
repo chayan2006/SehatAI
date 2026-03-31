@@ -299,7 +299,7 @@ export default function SehatLinkPage({ onBack }) {
                 { val: '₹3K', label: 'Target retail price', icon: 'sell', color: '#10b981' },
                 { val: '200M+', label: 'At-risk Indians', icon: 'groups', color: '#f59e0b' },
               ].map(s => (
-                <div key={s.val} className="bg-white/[0.04] border border-white/5 rounded-2xl p-4 flex items-center gap-3">
+                <div key={s.val} className="bg-white/4 border border-white/5 rounded-2xl p-4 flex items-center gap-3">
                   <span className="material-symbols-outlined text-xl" style={{ color: s.color }}>{s.icon}</span>
                   <div>
                     <div className="text-2xl font-black text-white leading-none">{s.val}</div>
@@ -311,7 +311,7 @@ export default function SehatLinkPage({ onBack }) {
           </div>
 
           {/* Tab navigation */}
-          <div className="flex gap-1 bg-white/[0.04] border border-white/5 p-1 rounded-2xl w-fit">
+          <div className="flex gap-1 bg-white/4 border border-white/5 p-1 rounded-2xl w-fit">
             {[
               { id: 'overview', label: 'Overview', icon: 'info' },
               { id: 'pitch', label: 'Investor Pitch', icon: 'bar_chart' },
@@ -355,12 +355,12 @@ export default function SehatLinkPage({ onBack }) {
                     { step: '03', title: 'GSM Transmission', icon: 'cell_tower', desc: 'GPS-embedded SOS via Cellular', detail: 'SIM800L Global Band' },
                     { step: '04', title: 'Cloud Dispatch', icon: 'cloud_done', desc: 'Ambulance & Hospital Routing', detail: 'SehatAI Enterprise OS' },
                   ].map((s, i) => (
-                    <div key={s.step} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 relative overflow-hidden group">
-                      <div className="absolute top-2 right-3 text-[40px] font-black text-white/[0.02] transition-colors group-hover:text-white/[0.05]">{s.step}</div>
+                    <div key={s.step} className="bg-white/3 border border-white/5 rounded-2xl p-5 relative overflow-hidden group">
+                      <div className="absolute top-2 right-3 text-[40px] font-black text-white/2 transition-colors group-hover:text-white/5">{s.step}</div>
                       <span className="material-symbols-outlined text-indigo-400 mb-3 block">{s.icon}</span>
                       <h4 className="font-bold text-white text-sm mb-1">{s.title}</h4>
                       <p className="text-[11px] text-slate-400 leading-relaxed mb-3">{s.desc}</p>
-                      <div className="text-[9px] font-black uppercase tracking-[0.1em] text-indigo-500/60">{s.detail}</div>
+                      <div className="text-[9px] font-black uppercase tracking-widest text-indigo-500/60">{s.detail}</div>
                     </div>
                   ))}
                 </div>
@@ -375,7 +375,7 @@ export default function SehatLinkPage({ onBack }) {
                   { icon: 'privacy_tip', title: 'Enterprise Security', desc: 'AES-128 End-to-End Encryption. Compliant with ABDM (Ayushman Bharat Digital Mission) standards for health data privacy and consent-based sharing.', accent: '#8b5cf6' },
                   { icon: 'battery_charging_full', title: 'Optimized Power', desc: 'Proprietary deep-sleep orchestration allows 5 days of tracking on a single 500mAh charge. Intelligent power scaling based on patient mobility patterns.', accent: '#38bdf8' },
                 ].map(card => (
-                  <div key={card.title} className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all group">
+                  <div key={card.title} className="bg-white/3 border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all group">
                     <div className="size-10 rounded-xl mb-4 flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: `${card.accent}20` }}>
                       <span className="material-symbols-outlined text-xl" style={{ color: card.accent }}>{card.icon}</span>
                     </div>
@@ -386,7 +386,7 @@ export default function SehatLinkPage({ onBack }) {
               </div>
 
               {/* BOM Table */}
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden">
+              <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-indigo-400">receipt_long</span>
@@ -397,14 +397,14 @@ export default function SehatLinkPage({ onBack }) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/5 text-[10px] uppercase tracking-widest text-slate-500 bg-white/[0.01]">
+                      <tr className="border-b border-white/5 text-[10px] uppercase tracking-widest text-slate-500 bg-white/1">
                         <th className="px-6 py-3 text-left">Component</th>
                         <th className="px-6 py-3 text-left">Function</th>
                         <th className="px-6 py-3 text-left">Engineering Rationale</th>
                         <th className="px-6 py-3 text-right">Unit Cost</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
+                    <tbody className="divide-y divide-white/4">
                       {[
                         { name: 'ESP32-WROOM-32', fn: 'Dual-core MCU', rat: 'Dual-core allows parallel sensor polling & alert comms', cost: '₹220' },
                         { name: 'MAX30102', fn: 'Pulse Oximetry', rat: 'High Signal-to-Noise ratio for reliable SpO2 data', cost: '₹85' },
@@ -416,7 +416,7 @@ export default function SehatLinkPage({ onBack }) {
                         { name: 'Industrial Enclosure', fn: 'Housing', rat: 'IP67 dust/splash resistance for rural environments', cost: '₹350' },
                         { name: 'Patch Antennas', fn: 'RF Comms', rat: 'High-gain GSM antenna for low-signal regions', cost: '₹90' },
                       ].map(row => (
-                        <tr key={row.name} className="hover:bg-white/[0.02] transition-colors">
+                        <tr key={row.name} className="hover:bg-white/2 transition-colors">
                           <td className="px-6 py-4 font-bold text-white">
                             <div className="flex flex-col">
                               <span>{row.name}</span>
@@ -427,7 +427,7 @@ export default function SehatLinkPage({ onBack }) {
                           <td className="px-6 py-4 text-right font-bold text-emerald-400 font-mono tracking-tight">{row.cost}</td>
                         </tr>
                       ))}
-                      <tr className="bg-white/[0.03] border-t border-white/10">
+                      <tr className="bg-white/3 border-t border-white/10">
                         <td className="px-6 py-5 font-black text-white" colSpan={3}>Target BOM Cost (Volume Pricing)</td>
                         <td className="px-6 py-5 text-right font-black text-emerald-400 text-xl tracking-tighter">₹1,515</td>
                       </tr>
@@ -438,7 +438,7 @@ export default function SehatLinkPage({ onBack }) {
 
               {/* Technical Specifications Data-Sheet */}
               <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6">
+                <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-5 text-indigo-400">
                     <span className="material-symbols-outlined">settings_input_composite</span>
                     <h3 className="font-bold text-white uppercase text-[10px] tracking-widest">Connectivity & Logic</h3>
@@ -459,7 +459,7 @@ export default function SehatLinkPage({ onBack }) {
                   </div>
                 </div>
 
-                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6">
+                <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-5 text-emerald-400">
                     <span className="material-symbols-outlined">power</span>
                     <h3 className="font-bold text-white uppercase text-[10px] tracking-widest">Power & Environment</h3>
@@ -490,7 +490,7 @@ export default function SehatLinkPage({ onBack }) {
                 <h2 className="text-xl font-black text-white mb-1">SEHAT-Link Investor Pitch</h2>
                 <p className="text-slate-400 text-sm">One-page pitch map — click any block to learn more</p>
               </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-8">
+              <div className="bg-white/3 border border-white/5 rounded-3xl p-8">
                 <InvestorPitchMap onNodeClick={id => setPitchModal(id)} />
               </div>
 
@@ -528,7 +528,7 @@ export default function SehatLinkPage({ onBack }) {
           {/* HOW IT WORKS TAB */}
           {activeSection === 'tech' && (
             <motion.div key="tech" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
-              <div className="bg-white/[0.03] border border-white/5 rounded-3xl overflow-hidden">
+              <div className="bg-white/3 border border-white/5 rounded-3xl overflow-hidden">
                 {/* Diagram */}
                 <div className="p-10 flex items-center justify-center min-h-[400px] bg-[#0d0f18] relative">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.06)_0%,transparent_70%)] pointer-events-none"></div>
@@ -552,7 +552,7 @@ export default function SehatLinkPage({ onBack }) {
                     <button
                       onClick={() => setSlide(s => Math.max(s - 1, 0))}
                       disabled={slide === 0}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${slide === 0 ? 'border-transparent text-slate-700 cursor-not-allowed bg-white/[0.03]' : 'border-indigo-500/30 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'}`}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${slide === 0 ? 'border-transparent text-slate-700 cursor-not-allowed bg-white/3' : 'border-indigo-500/30 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'}`}
                     >
                       <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                       Previous
@@ -569,15 +569,15 @@ export default function SehatLinkPage({ onBack }) {
                     <button
                       onClick={() => setSlide(s => Math.min(s + 1, totalSlides - 1))}
                       disabled={slide === totalSlides - 1}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${slide === totalSlides - 1 ? 'border-transparent text-slate-700 cursor-not-allowed bg-white/[0.03]' : 'border-indigo-500/30 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'}`}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${slide === totalSlides - 1 ? 'border-transparent text-slate-700 cursor-not-allowed bg-white/3' : 'border-indigo-500/30 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'}`}
                     >
                       Next Step
                       <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                     </button>
                   </div>
 
-                  <div className="bg-[#0d0f18] border border-white/[0.06] rounded-2xl p-6 relative overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-gradient-to-b from-indigo-500 to-sky-500"></div>
+                  <div className="bg-[#0d0f18] border border-white/6 rounded-2xl p-6 relative overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-linear-to-b from-indigo-500 to-sky-500"></div>
                     <h3 className="font-black text-white text-base mb-2 ml-3">{techSlides[slide].title}</h3>
                     <p className="text-slate-400 text-sm leading-relaxed ml-3">{techSlides[slide].desc}</p>
                   </div>
