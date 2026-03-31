@@ -22,45 +22,70 @@ from torchvision import transforms, models
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PIL import Image
+import timm
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-MODEL_PATH  = os.path.join(os.path.dirname(__file__), "model", "xray_model.pth")
+MODEL_DIR   = os.path.join(os.path.dirname(__file__), "model")
 DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
-CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
 
 # ── FLASK APP ─────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)   # Allow requests from React app (localhost:5173)
 
-# ── LOAD MODEL ────────────────────────────────────────────────────────────────
-model = None
+# ── LAZY MODEL LOADING (load on-demand to save RAM on free tier) ──────────────
+MODELS = {}  # Cache once loaded
 
-def load_model():
-    global model, CLASS_NAMES
-    if not os.path.exists(MODEL_PATH):
-        print("⚠️  Model file not found at:", MODEL_PATH)
-        print("   Please run train.py first.")
-        return False
+def load_model(model_key):
+    """Load a single model by key, cache it, return it."""
+    if model_key in MODELS:
+        return MODELS[model_key]
 
-    # Rebuild architecture
-    net = models.densenet121(weights=None)
-    net.classifier = nn.Sequential(
-        nn.Linear(net.classifier.in_features, 256),
-        nn.ReLU(),
-        nn.Dropout(0.4),
-        nn.Linear(256, len(CLASS_NAMES))
-    )
+    # Try exact name or with _model suffix
+    candidates = [model_key, f"{model_key}_model"]
+    path = None
+    for name in candidates:
+        candidate_path = os.path.join(MODEL_DIR, f"{name}.pth")
+        if os.path.exists(candidate_path):
+            path = candidate_path
+            model_key = name
+            break
 
-    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-    net.load_state_dict(checkpoint["model_state_dict"])
-    CLASS_NAMES = checkpoint.get("class_names", CLASS_NAMES)
+    if not path:
+        return None
 
-    net.eval()
-    net.to(DEVICE)
-    model = net
-    print(f"✅ Model loaded from {MODEL_PATH}")
-    print(f"   Classes: {CLASS_NAMES}")
-    return True
+    try:
+        checkpoint = torch.load(path, map_location=DEVICE, weights_only=False)
+        classes = checkpoint.get("class_names", checkpoint.get("classes", []))
+        model_name = checkpoint.get("model_name", "densenet121").lower()
+
+        if "efficientnet" in model_name:
+            net = timm.create_model(model_name, pretrained=False, num_classes=len(classes))
+        else:
+            hidden_size = 256
+            if "model_state_dict" in checkpoint and "classifier.0.weight" in checkpoint["model_state_dict"]:
+                hidden_size = checkpoint["model_state_dict"]["classifier.0.weight"].size(0)
+            net = models.densenet121(weights=None)
+            net.classifier = nn.Sequential(
+                nn.Linear(net.classifier.in_features, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(0.4),
+                nn.Linear(hidden_size, len(classes))
+            )
+
+        state = checkpoint.get("model_state_dict", checkpoint.get("state_dict"))
+        net.load_state_dict(state)
+        net.eval().to(DEVICE)
+
+        MODELS[model_key] = {
+            "net": net,
+            "classes": classes,
+            "name": model_key.replace("_model", "").upper()
+        }
+        print(f"✅ Loaded on demand: {model_key} ({len(classes)} classes)")
+        return MODELS[model_key]
+    except Exception as e:
+        print(f"❌ Failed to load {model_key}: {e}")
+        return None
 
 # ── IMAGE PREPROCESSING ───────────────────────────────────────────────────────
 preprocess = transforms.Compose([
@@ -79,61 +104,59 @@ def index():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({ "status": "ok", "model_loaded": model is not None })
+    return jsonify({ "status": "ok", "models_loaded": list(MODELS.keys()) })
 
-@app.route("/analyze-xray", methods=["POST"])
-def analyze_xray():
-    if model is None:
+@app.route("/analyze/<model_type>", methods=["POST"])
+def analyze(model_type):
+    # Lazy-load the requested model (saves RAM on free tier)
+    target = load_model(model_type)
+    if not target:
+        target = load_model(f"{model_type}_model")
+
+    if not target:
         return jsonify({
-            "error": "Model not loaded. Please run train.py first.",
-            "diagnosis": "Model Unavailable",
-            "confidence": 0
-        }), 503
+            "error": f"Model '{model_type}' not found.",
+            "available_models": [f.replace('.pth','') for f in os.listdir(MODEL_DIR) if f.endswith('.pth')]
+        }), 404
 
     data = request.json
     if not data or "image_base64" not in data:
-        return jsonify({ "error": "No image_base64 field in request body." }), 400
+        return jsonify({ "error": "No image_base64 field" }), 400
 
     try:
-        # Decode the base64 image from React
         img_data = data["image_base64"]
-        # Strip header if present: "data:image/jpeg;base64,xxxx"
-        if "," in img_data:
-            img_data = img_data.split(",", 1)[1]
-
+        if "," in img_data: img_data = img_data.split(",", 1)[1]
         img_bytes = base64.b64decode(img_data)
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-
-        # Preprocess and classify
         tensor = preprocess(image).unsqueeze(0).to(DEVICE)
 
         with torch.no_grad():
-            outputs = model(tensor)
+            outputs = target["net"](tensor)
             probs = torch.softmax(outputs, dim=1)[0]
 
-        # Build result
         predicted_idx = int(torch.argmax(probs).item())
-        confidence    = float(probs[predicted_idx].item()) * 100
-        diagnosis     = CLASS_NAMES[predicted_idx]
-
-        all_probs = {CLASS_NAMES[i]: round(float(probs[i].item()) * 100, 2) for i in range(len(CLASS_NAMES))}
-
+        confidence = float(probs[predicted_idx].item()) * 100
+        diagnosis = target["classes"][predicted_idx]
+        
         return jsonify({
             "diagnosis": diagnosis,
-            "confidence": round(confidence, 2),
-            "all_probabilities": all_probs,
-            "model": "DenseNet121 (SehatAI Custom)"
+            "confidence": round(float(confidence), 2),
+            "model_type": target["name"],
+            "all_probabilities": {target["classes"][i]: round(float(probs[i].item() * 100), 2) for i in range(len(target["classes"]))}
         })
-
     except Exception as e:
         return jsonify({ "error": str(e) }), 500
 
+# Legacy route for backward compatibility
+@app.route("/analyze-image", methods=["POST"])
+def analyze_legacy():
+    # Default to xray model
+    return analyze("xray")
+
 
 if __name__ == "__main__":
-    model_ok = load_model()
-    if not model_ok:
-        print("\n🔴 Starting server in DEMO mode (no model loaded).")
-        print("   Train the model first using: python train.py")
-
-    print("\n🚀 SehatAI ML Server running at http://localhost:5001")
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    print(f"\n🚀 SehatAI Multi-Model Server trying to start on http://0.0.0.0:5001")
+    try:
+        app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    except Exception as e:
+        print(f"CRITICAL ERROR: {e}")

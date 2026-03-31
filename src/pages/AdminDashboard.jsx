@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { initAdminAgent } from '@/lib/adminAgent';
+import { initN8nAgent } from '@/lib/n8nAgent';
 import { Bot, Send, X, Minimize2, Maximize2, Loader2, MessageCircle, Mic, MicOff } from 'lucide-react';
 import AIChat from '@/components/AIChat';
 import { getHospitalStats, getPatients } from '@/lib/supabaseService';
@@ -232,6 +233,20 @@ export default function AdminDashboard({ role, onLogout }) {
     useEffect(() => {
 
         const setupAgent = async () => {
+            const n8nUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+            if (n8nUrl) {
+                try {
+                    const executor = await initN8nAgent({ 
+                        webhookUrl: n8nUrl, 
+                        sessionId: "admin-session" 
+                    });
+                    setAgentExecutor(executor);
+                    return;
+                } catch (err) {
+                    console.error("n8n Init Error:", err);
+                }
+            }
+
             const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env?.GROQ_API_KEY : undefined);
             if (!apiKey) return;
 
@@ -1728,7 +1743,7 @@ export default function AdminDashboard({ role, onLogout }) {
                             }
                         },
                         { icon: 'lock_reset', label: 'Reset Token', action: () => { showToast('Session token rotated — sign-in link sent to your email.', 'info'); setShowSettings(false); } },
-                        { icon: 'logout', label: 'Sign Out', action: () => window.location.reload() },
+                        { icon: 'logout', label: 'Sign Out', action: () => { setShowSettings(false); onLogout(); } },
                     ].map((item, i) => (
                         <button key={i} onClick={item.action} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'none', border: 'none', borderBottom: i < 3 ? '1px solid #f1f5f9' : 'none', cursor: 'pointer', fontSize: 14, color: '#334155', fontWeight: 500 }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>{item.icon}</span>

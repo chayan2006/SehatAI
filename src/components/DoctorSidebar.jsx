@@ -105,7 +105,7 @@ export function DoctorSidebar({ className, activeTab, onTabChange, user }) {
           )}
         >
           <div 
-            className="w-10 h-10 flex-shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-2 border-white dark:border-slate-800 shadow-sm" 
+            className="w-10 h-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-2 border-white dark:border-slate-800 shadow-sm"
             style={{ backgroundImage: `url(${user?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAZyi6wRVH7rOiDaIljA0jMG-SLjzrTnX6uWbglYVRkplpyvp-C0KueyvZDu2GOCq9ryIrWLsu3BVTW59nAfUVwZTKJWc44VHWTOcy2xV3oSa_XaUCJYZtkciYopWn2aeMzWtBCnMoOOxjjoxo06SWW3nFcbD8GzOwGswxYWPx4whOLC6poO7H484xELqtQHj4tlDOZLAoPwVzlMLa8WU6J_xe6xZwEB6XsfBd1ldXAo1zzfuxfmGWTJvtzVeCAwH0HLqGaqof8el9j'})` }}
           ></div>
           <div className="flex-1 min-w-0 text-left">

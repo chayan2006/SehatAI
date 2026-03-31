@@ -128,19 +128,33 @@ const tools = [
 ];
 
 // ─── Custom ML server (SehatAI trained model) ────────────────────────────────
-async function analyzeWithLocalML(imageDataUrl) {
+async function analyzeWithLocalML(imageDataUrl, modelType = "xray_model") {
+  // Use Render-hosted ML server in production. Falls back to Gemini if unreachable.
+  const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
+  const url = `${ML_SERVER_URL}/analyze/${modelType}`;
   try {
-    const res = await fetch('http://localhost:5001/analyze-xray', {
+    // Attempt with a shorter timeout (6s). We pinged the server earlier to wake it up, 
+    // but if it's still asleep, we don't want the user waiting 50s. We'll fallback to Gemini quickly.
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageDataUrl }),
-      signal: AbortSignal.timeout(5000) // 5 second timeout
+      signal: AbortSignal.timeout(6000) 
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null; // Server not running — fall back to Gemini
+    if (res.ok) return await res.json();
+    return { error: `Server error: ${res.status}` };
+  } catch (e) {
+    return { error: `Timeout or connection failed: ${e.message}` };
   }
+}
+
+function detectModelType(input = "") {
+  const text = input.toLowerCase();
+  if (text.includes("hair") || text.includes("scalp") || text.includes("bald")) return "hair_model";
+  if (text.includes("chest") || text.includes("lung") || text.includes("xray") || text.includes("x-ray")) return "xray_model";
+  if (text.includes("skin") || text.includes("mole") || text.includes("spot")) return "health_model";
+  if (text.includes("injury") || text.includes("wound") || text.includes("cut") || text.includes("burn") || text.includes("bruise")) return "injury_model";
+  return "xray_model"; // Default to xray since we are testing chest x-rays
 }
 
 async function analyzeImageWithGemini(imageDataUrl, question) {
@@ -154,7 +168,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +195,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
 export async function initPatientAgent({ apiKey }) {
   const llm = new ChatGroq({
     apiKey: apiKey,
-    model: "llama-3.1-8b-instant",
+    model: "llama-3.3-70b-versatile",
     temperature: 0.2,
     maxRetries: 1,
     timeout: 20000,
@@ -190,12 +204,15 @@ export async function initPatientAgent({ apiKey }) {
   const agent = createReactAgent({
     llm,
     tools,
-    stateModifier: `You are SehatAI Patient Companion, an autonomous AI health agent.
-You help patients manage health records, log meals, book appointments, and provide advice.
-You can also search our medical knowledge base and send official emails via SehatAI Support.
+    stateModifier: `You are SehatAI Patient Companion.
+Help patients manage records, log meals, book appointments, and provide advice.
 
-IMPORTANT: If the user sends a simple greeting like 'hi', do NOT call any tools. Just reply warmly.
-Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but actionable.`,
+STRICT STYLE RULES:
+1. Be extremely CONCISE and ACTIONABLE. 
+2. Use BULLET POINTS for all medical/ML reports. 
+3. Avoid "fluff" or "boring" long paragraphs. Keep it as a mid-length summary.
+4. Only provide deep explanations if the user explicitly asks "Tell me more" or "Why?".
+5. Reply in the user's language (English, Hindi, or Hinglish).`,
   });
 
   return {
@@ -209,23 +226,30 @@ Reply in the user's language (English, Hindi, or Hinglish). Be empathetic but ac
         // If image is uploaded:
         if (image_data) {
           // Step 1: Try local custom-trained ML model first
-          const mlResult = await analyzeWithLocalML(image_data);
-          
-          if (mlResult && mlResult.diagnosis) {
-            const diag = mlResult.diagnosis;
-            const conf = mlResult.confidence;
-            const advice = diag === 'PNEUMONIA' 
-              ? '\n\n⚠️ **Medical Alert:** The scan suggests Pneumonia. Please consult a pulmonologist immediately.' 
-              : '\n\n✅ The scan appears Normal. Maintain healthy habits and consult a doctor if you feel unwell.';
-              
-            return {
-              output: `**AI Vision Analysis (Custom ML Model)**\nI have analyzed your X-Ray.\n\n**Diagnosis:** ${diag}\n**Confidence:** ${conf}%${advice}`
-            };
+          const modelType = detectModelType(input);
+          const mlResult = await analyzeWithLocalML(image_data, modelType);
+
+          if (mlResult && !mlResult.error) {
+            // ML server responded — inject findings into Groq for intelligent follow-up chat
+            const mlContext = `[MEDICAL IMAGING REPORT - ${mlResult.model_type} Model]\nDiagnosis: ${mlResult.diagnosis}\nConfidence: ${mlResult.confidence}%\nAll Probabilities: ${JSON.stringify(mlResult.all_probabilities)}`;
+
+            const followUpPrompt = input
+              ? `The medical imaging scan was analyzed. Results:\n${mlContext}\n\nPatient question: "${input}"\n\nBased on the ML analysis above, answer the patient's question in a clear, empathetic way. Emphasize consulting a doctor for official diagnosis.`
+              : `The medical imaging scan was analyzed. Results:\n${mlContext}\n\nExplain these findings to the patient in simple language. Emphasize consulting a doctor.`;
+
+            const history = chat_history.slice(-4).map(([role, text]) =>
+              role === "human" ? new HumanMessage(text) : new AIMessage(text)
+            );
+            const response = await agent.invoke({
+              messages: [...history, new HumanMessage(followUpPrompt)],
+            });
+            const final = response.messages[response.messages.length - 1];
+            return { output: `📊 **ML Analysis Result:** ${mlResult.diagnosis} (${mlResult.confidence}% confidence)\n\n` + (final.content || '') };
           }
 
-          // Step 2: Fallback to Gemini if local ML is down or fails
+          // If the custom ML server actually fails (after 6s), fall back to Gemini multimodal
           const geminiAnalysis = await analyzeImageWithGemini(image_data, input);
-          return { output: geminiAnalysis };
+          return { output: `*(Note: Used general AI fallback since custom ML server was unreachable)*\n\n${geminiAnalysis}` };
         }
 
         // Text chat → Groq (free, unlimited)

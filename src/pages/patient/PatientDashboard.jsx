@@ -61,38 +61,41 @@ export default function PatientDashboard({ onLogout }) {
         if (apiKey) {
           const executor = await initPatientAgent({ apiKey });
           setAgentExecutor(executor);
-
-          if (user?.email) {
-            sendEmailNotification({ type: 'dashboard', email: user.email });
-          } else {
-             // Fallback for demo
-             sendEmailNotification({ type: 'dashboard', email: "patient@example.com" });
-          }
         }
       } catch (error) {
         console.error('Failed to initialize Patient AI:', error);
       }
     };
     setupAgent();
+
+    // Fire-and-forget: pre-warm ML server + send dashboard notification in background
+    const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
+    fetch(ML_SERVER_URL).catch(() => {});
+    if (user?.email) {
+      sendEmailNotification({ type: 'dashboard', email: user.email }).catch(() => {});
+    }
+
     // Fetch real notifications from Firestore
-    if (user?.id) {
-      getNotificationsForUser(user.id).then(data => {
+    const userId = user?.id || user?.uid;
+    if (userId) {
+      getNotificationsForUser(userId).then(data => {
         setNotifications(data);
         setUnreadCount(data.filter(n => !n.is_read).length);
       }).catch(() => {});
     }
-  }, [user]);
+  }, [user?.id, user?.uid]);
 
   // Check medical profile completion & load hospital info
   useEffect(() => {
-    if (!user?.id) return;
+    const userId = user?.id || user?.uid;
+    if (!userId) return;
     (async () => {
       try {
-        const userSnap = await getDoc(doc(db, 'users', user.id));
+        const userSnap = await getDoc(doc(db, 'users', userId));
         const data = userSnap.data() || {};
         setMedicalProfileComplete(!!data.medicalProfileComplete);
         
-        const patientSnap = await getDoc(doc(db, 'patients', user.id));
+        const patientSnap = await getDoc(doc(db, 'patients', userId));
         if (patientSnap.exists()) {
           setMedicalProfileData(patientSnap.data().medicalProfile || null);
         }
@@ -108,7 +111,7 @@ export default function PatientDashboard({ onLogout }) {
     })();
     // Request location permission on login
     getUserLocation().then(setUserLocation);
-  }, [user?.id]);
+  }, [user?.id, user?.uid]);
 
   // Proper click-outside-to-close logic
   useEffect(() => {

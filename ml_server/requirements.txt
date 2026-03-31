@@ -5,3 +5,5 @@ flask-cors
 pillow
 numpy
 kagglehub
+timm
+gunicorn

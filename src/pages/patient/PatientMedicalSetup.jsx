@@ -31,7 +31,7 @@ export default function PatientMedicalSetup({ onComplete, onSkip }) {
     age: '',
     dateOfBirth: '',
     gender: '',
-    phone: '',
+    phone: user?.phone || '',
     emergencyContact: '',
     emergencyPhone: '',
     address: '',
@@ -109,10 +109,11 @@ export default function PatientMedicalSetup({ onComplete, onSkip }) {
         { merge: true }
       );
 
-      // Also update users/{uid} with hospitalId and profile complete flag
+      // Also update users/{uid} with hospitalId, phone, and profile complete flag
       await updateDoc(doc(db, 'users', user.id), {
         primaryHospitalId: form.primaryHospitalId,
         medicalProfileComplete: true,
+        phone: form.phone,
       });
 
       onComplete(profile);

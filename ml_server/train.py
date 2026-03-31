@@ -32,15 +32,13 @@ from torch.utils.data import DataLoader
 import kagglehub
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-LOCAL_DATA  = os.path.join(os.path.dirname(__file__), "data", "chest_xray")
-MODEL_DIR   = os.path.join(os.path.dirname(__file__), "model")
-EPOCHS      = 3
+LOCAL_DATA      = os.path.join(os.path.dirname(__file__), "data", "xray_disease")
+MODEL_DIR       = os.path.join(os.path.dirname(__file__), "model")
+MODEL_SAVE_NAME = "xray_model.pth"
+EPOCHS      = 5
 BATCH_SIZE  = 32
 LR          = 1e-4
-NUM_CLASSES = 2   # NORMAL, PNEUMONIA
 DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
-
-CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
 
 print(f"Training on: {DEVICE.upper()}")
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -50,13 +48,12 @@ if os.path.isdir(LOCAL_DATA):
     print(f"Dataset already exists at: {LOCAL_DATA}")
     DATA_DIR = LOCAL_DATA
 else:
-    print("Downloading Chest X-Ray dataset from Kaggle...")
-    print("(This is ~2 GB and may take a few minutes)")
+    print("Downloading Chest X-Ray (Pneumonia) dataset from Kaggle...")
+    print("(This may take a few minutes)")
     kaggle_path = kagglehub.dataset_download("paultimothymooney/chest-xray-pneumonia")
     print(f"Dataset downloaded to: {kaggle_path}")
-    # kagglehub downloads to a cache dir — find the chest_xray subfolder
     for root, dirs, _ in os.walk(kaggle_path):
-        if "train" in dirs and "test" in dirs:
+        if "train" in dirs:
             DATA_DIR = root
             break
     else:
@@ -66,9 +63,10 @@ else:
 # ── DATA TRANSFORMS ───────────────────────────────────────────────────────────
 train_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(10),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomVerticalFlip(p=0.1),
+    transforms.RandomRotation(15),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
@@ -81,23 +79,32 @@ val_transforms = transforms.Compose([
 
 # ── DATASETS & LOADERS ────────────────────────────────────────────────────────
 train_dataset = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), train_transforms)
-val_dataset   = datasets.ImageFolder(os.path.join(DATA_DIR, "val"),   val_transforms)
 
 train_loader  = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,  num_workers=0)
+
+# The skin cancer dataset might not have a "val" folder. If it has "test", we use that.
+val_path = os.path.join(DATA_DIR, "val")
+if not os.path.exists(val_path):
+    val_path = os.path.join(DATA_DIR, "test")
+
+val_dataset   = datasets.ImageFolder(val_path, val_transforms)
 val_loader    = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+
+CLASS_NAMES = train_dataset.classes
+NUM_CLASSES = len(CLASS_NAMES)
 
 print(f"Training samples : {len(train_dataset)}")
 print(f"Validation samples : {len(val_dataset)}")
-print(f"Classes: {train_dataset.classes}")
+print(f"Classes ({NUM_CLASSES}): {CLASS_NAMES}")
 
 # ── MODEL (DenseNet121 Transfer Learning) ─────────────────────────────────────
 model = models.densenet121(weights=models.DenseNet121_Weights.DEFAULT)
 
-# Freeze all layers except the final classifier
+# 1:30-HOUR FULL POWER CPU: Freeze visual features for speed, but use ALL 9,600 images
 for param in model.parameters():
     param.requires_grad = False
 
-# Replace the classifier with our custom one
+# Use 256 middle nodes for faster CPU math
 model.classifier = nn.Sequential(
     nn.Linear(model.classifier.in_features, 256),
     nn.ReLU(),
@@ -108,9 +115,18 @@ model.classifier = nn.Sequential(
 model = model.to(DEVICE)
 
 # ── LOSS & OPTIMIZER ──────────────────────────────────────────────────────────
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.classifier.parameters(), lr=LR)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.5)
+# Dynamically Calculate Class Weights to prevent the Medical AI from ignoring rare diseases
+class_counts = [0] * NUM_CLASSES
+for _, label in train_dataset.samples:
+    class_counts[label] += 1
+
+print(f"Dataset Imbalance Check: {dict(zip(CLASS_NAMES, class_counts))}")
+class_weights = [len(train_dataset) / count for count in class_counts]
+weights_tensor = torch.FloatTensor(class_weights).to(DEVICE)
+
+criterion = nn.CrossEntropyLoss(weight=weights_tensor)
+optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=1e-4)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2)
 
 # ── TRAINING LOOP ─────────────────────────────────────────────────────────────
 best_val_acc = 0.0
@@ -120,7 +136,8 @@ for epoch in range(1, EPOCHS + 1):
     model.train()
     running_loss, correct, total = 0.0, 0, 0
 
-    for images, labels in train_loader:
+    for i, (images, labels) in enumerate(train_loader):
+        # 🔥 1:30-HOUR FULL DATASET CPU MODE (Removed batch limits)
         images, labels = images.to(DEVICE), labels.to(DEVICE)
         optimizer.zero_grad()
         outputs = model(images)
@@ -140,7 +157,8 @@ for epoch in range(1, EPOCHS + 1):
     model.eval()
     val_correct, val_total = 0, 0
     with torch.no_grad():
-        for images, labels in val_loader:
+        for j, (images, labels) in enumerate(val_loader):
+            # 🔥 USING FULL VALIDATION SET
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             outputs = model(images)
             _, preds = torch.max(outputs, 1)
@@ -163,7 +181,8 @@ for epoch in range(1, EPOCHS + 1):
         }, save_path)
         print(f"   ✅ Saved best model (val_acc={val_acc:.2f}%) → {save_path}")
 
-    scheduler.step()
+    # Step the plateau scheduler with validation accuracy
+    scheduler.step(val_acc)
 
 print(f"\n🎉 Training complete! Best Validation Accuracy: {best_val_acc:.2f}%")
 print(f"   Model saved at: {os.path.join(MODEL_DIR, 'xray_model.pth')}")

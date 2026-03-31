@@ -42,6 +42,15 @@ export default function AIChat({
         }
     }, [voiceMode]);
 
+    // Wake up the ML Server as soon as the chat widget opens
+    useEffect(() => {
+        if (isOpen) {
+            // Fire-and-forget request to wake cold-start without user waiting later
+            const ML_SERVER_URL = import.meta.env.VITE_ML_SERVER_URL || 'http://127.0.0.1:5001';
+            fetch(ML_SERVER_URL).catch(() => {});
+        }
+    }, [isOpen]);
+
     // Initialize Speech Recognition
     useEffect(() => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -113,7 +122,9 @@ export default function AIChat({
         const userMsg = { role: 'human', text: text || "Analyzed attachment", timestamp: Date.now(), image: imagePreview };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
+        
         const currentImage = imagePreview;
+        const currentFile = selectedImage;
         setImagePreview(null);
         setSelectedImage(null);
 
@@ -124,10 +135,15 @@ export default function AIChat({
         }
 
         try {
+            let llmInput = text || "What does this image show?";
+            let imageForAgent = currentImage;
+
+            // The image will be handled internally by agentExecutor (patientAgent.js)
+
             const response = await agentExecutor.invoke({
-                input: text,
+                input: llmInput,
                 chat_history: messages.map(m => [m.role, m.text]).slice(-10),
-                image_data: currentImage
+                image_data: imageForAgent
             });
 
             const aiMsg = { 
@@ -214,9 +230,13 @@ export default function AIChat({
                             </div>
                         ))}
                         {isTyping && (
-                            <div style={{ alignSelf: 'flex-start', background: 'white', padding: '12px 16px', borderRadius: '18px 18px 18px 4px', border: '1px solid #e2e8f0', display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <Loader2 size={16} className="animate-spin" style={{ color: themeColor }} />
-                                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Thinking...</span>
+                            <div style={{ alignSelf: 'flex-start', background: 'white', padding: '14px 18px', borderRadius: '18px 18px 18px 4px', border: '1px solid #e2e8f0', display: 'flex', gap: 12, alignItems: 'center', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <div className="cool-pulse-dot" style={{ backgroundColor: themeColor, animationDelay: '-0.32s' }}></div>
+                                    <div className="cool-pulse-dot" style={{ backgroundColor: themeColor, animationDelay: '-0.16s' }}></div>
+                                    <div className="cool-pulse-dot" style={{ backgroundColor: themeColor, animationDelay: '0s' }}></div>
+                                </div>
+                                <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500, letterSpacing: '0.3px' }}>AI is analyzing...</span>
                             </div>
                         )}
                         <div ref={messagesEndRef} />
@@ -295,6 +315,17 @@ export default function AIChat({
                 }
                 .animate-spin { animation: spin 1s linear infinite; }
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                
+                .cool-pulse-dot { 
+                    width: 10px; 
+                    height: 10px; 
+                    border-radius: 50%; 
+                    animation: coolPulse 1.4s infinite ease-in-out both; 
+                }
+                @keyframes coolPulse { 
+                    0%, 80%, 100% { transform: scale(0); opacity: 0.3; } 
+                    40% { transform: scale(1); opacity: 1; box-shadow: 0 0 8px currentColor; } 
+                }
             `}</style>
         </div>
     );

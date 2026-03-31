@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: sehatai-ml-server
+    env: python
+    region: frankfurt
+    plan: free # Going to try on the 512MB free tier to avoid the credit card barrier. It might OOM crash.
+    rootDir: ml_server
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn server:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12

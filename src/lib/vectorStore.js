@@ -6,12 +6,9 @@
 
 // Singleton instance
 let vectorStore = null;
-let embeddings = null;
 let useMock = false;
 
-const SAVE_PATH = "c:\\Users\\kadit\\OneDrive\\Desktop\\Hackathon\\sehat_ai\\.cache\\vectorstore";
-
-// Seed Data for Mock Search
+// Seed Data for Mock/Fallback Search
 const SEED_DATA = [
   { pageContent: "SehatAI Emergency Protocol (CODE BLUE): Immediately notify ICU and clear Wing B. Ensure defib is ready.", metadata: { source: "protocol" } },
   { pageContent: "Patient Data Privacy Policy: All EMR records must be encrypted via AES-256. Access logs are purged every 90 days.", metadata: { source: "policy" } },
@@ -19,70 +16,59 @@ const SEED_DATA = [
   { pageContent: "Inventory Burn Rate Threshold: Trigger re-order when stock levels drop below 15% of monthly average.", metadata: { source: "pharmacy" } }
 ];
 
+// Build a lightweight in-memory mock store (works in all environments)
+function buildMockStore() {
+  return {
+    addDocuments: async (docs) => { SEED_DATA.push(...docs); },
+    similaritySearch: async (query, k) => {
+      const words = query.toLowerCase().split(' ');
+      const matches = SEED_DATA.filter(doc =>
+        words.some(word => doc.pageContent.toLowerCase().includes(word))
+      ).slice(0, k);
+      return matches.length > 0 ? matches : [{ pageContent: "No specific protocol found for your query. Please consult the attending physician.", metadata: {} }];
+    }
+  };
+}
+
 /**
- * Initializes LangChain components dynamically.
+ * Initializes the vector store.
+ * In browsers: always uses fast in-memory mock (HNSWLib requires Node.js/fs).
+ * In Node.js: tries HNSWLib with Google embeddings, falls back to mock.
  */
 const initLangChain = async () => {
   if (vectorStore) return vectorStore;
 
+  // Browser environment: always use mock (HNSWLib needs Node.js fs API)
+  if (typeof window !== 'undefined') {
+    console.log("VectorStore: Browser detected, using fast in-memory store.");
+    useMock = true;
+    vectorStore = buildMockStore();
+    return vectorStore;
+  }
+
+  // Node.js environment: try real HNSWLib with embeddings
   try {
-    console.log("VectorStore: Initializing LangChain components...");
-    
-    // Fix: Using community package for HNSWLib
     const { HNSWLib } = await import("@langchain/community/vectorstores/hnswlib");
     const { GoogleGenerativeAIEmbeddings } = await import("@langchain/google-genai");
+    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
-    // Fix: Use import.meta.env for Vite compatibility
-    const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      throw new Error("Missing VITE_GOOGLE_AI_KEY for embeddings.");
-    }
+    if (!apiKey) throw new Error("Missing Gemini API key for embeddings.");
 
-    embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey,
-      modelName: "embedding-001",
-      maxRetries: 0,
-    });
+    const embeddings = new GoogleGenerativeAIEmbeddings({ apiKey, modelName: "embedding-001", maxRetries: 0 });
+    const SAVE_PATH = "./cache/vectorstore";
 
     try {
-      // Try loading from saved path first
-      console.log(`VectorStore: Attempting to load from ${SAVE_PATH}`);
       vectorStore = await HNSWLib.load(SAVE_PATH, embeddings);
-      console.log("VectorStore: Loaded existing persistence successfully.");
-    } catch (loadErr) {
-      console.log("VectorStore: No existing index found, creating fresh store...");
+      console.log("VectorStore: Loaded from cache.");
+    } catch {
       vectorStore = await HNSWLib.fromDocuments(SEED_DATA, embeddings);
-      
-      // Save for persistence if NOT in browser (HNSWLib save requires 'fs')
-      if (typeof window === 'undefined') {
-        try {
-          await vectorStore.save(SAVE_PATH);
-          console.log("VectorStore: Persisted fresh index to disk.");
-        } catch (saveErr) {
-          console.warn("VectorStore: Failed to save to disk:", saveErr.message);
-        }
-      }
+      try { await vectorStore.save(SAVE_PATH); } catch {}
     }
-    
     return vectorStore;
   } catch (err) {
-    console.warn("VectorStore: LangChain initialization failed, switching to SAFE MOCK:", err.message);
+    console.warn("VectorStore: Falling back to mock:", err.message);
     useMock = true;
-    vectorStore = {
-      addDocuments: async (docs) => {
-        console.log("Mock VectorStore: Logged new data (volatile):", docs);
-        SEED_DATA.push(...docs);
-      },
-      similaritySearch: async (query, k) => {
-        console.log("Mock VectorStore: Performing keyword search for:", query);
-        const words = query.toLowerCase().split(' ');
-        const matches = SEED_DATA.filter(doc => 
-          words.some(word => doc.pageContent.toLowerCase().includes(word))
-        ).slice(0, k);
-        return matches.length > 0 ? matches : [{ pageContent: "No specific hospital protocol found for your query. Please consult the attending physician.", metadata: {} }];
-      }
-    };
+    vectorStore = buildMockStore();
     return vectorStore;
   }
 };

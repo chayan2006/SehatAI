@@ -7,3 +7,17 @@ coverage/
 .env*
 !.env.example
 stdout
+ml_injury_model/HAM10000/
+ml_injury_model/data/
+ml_injury_model/dataset/
+ml_injury_model/kaggle_raw/
+ml_injury_model/__pycache__/
+ml_server/venv/
+ml_server/__pycache__/
+ml_lung_model/dataset/
+ml_lung_model/__pycache__/
+# Ignore new model weights
+ml_lung_model/*.pth
+ml_injury_model/*.pth
+# Allow ML model weights in the server folder
+!ml_server/model/*.pth

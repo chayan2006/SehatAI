@@ -9,8 +9,8 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import {
   getPatients, getHospitalStats, getAllAppointments,
-  sendNotificationToUser, getPatients as getDoctorPatients
-} from './firestoreService.js';
+  sendNotificationToUser
+} from './supabaseService.js';
 import { sendEmailNotification } from "./emailService.js";
 
 // ─── Image analysis (Gemini direct) ──────────────────────────────────────────
@@ -22,7 +22,7 @@ async function analyzeImageWithGemini(imageDataUrl, question) {
   const [, mimeType, base64Data] = match;
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,8 +128,8 @@ export async function initHospitalAgent({ apiKey }) {
     tools,
     stateModifier: `You are the SehatAI Hospital Agent for the Doctor Portal.
 You have real-time access to:
-1. Patient records from Firestore
-2. Appointment data from Firestore
+1. Patient records from the database
+2. Appointment data from the database
 3. Hospital stats (beds, occupancy)
 4. The ability to send push alerts directly to patients
 5. The ability to send official emails via SehatAI Support

@@ -27,7 +27,8 @@ function LoadingScreen() {
 /** Wrapper: redirects to / if not authed or wrong role */
 function ProtectedRoute({ role: requiredRole, children }) {
   const { user, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
+  // Show spinner while auth is resolving OR while role is still being fetched
+  if (loading || (user && user.role === 'loading')) return <LoadingScreen />;
   if (!user || user.role !== requiredRole) return <Navigate to="/" replace />;
   return children;
 }
@@ -37,9 +38,12 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect to dashboard after login if already on a login/root page
+  // Redirect to dashboard after login — but ONLY once Firebase has resolved
   useEffect(() => {
-    if (loading || !user || user.role === 'loading') return;
+    // Don't do anything while Firebase is still initialising
+    if (loading) return;
+    // Only redirect if we have a fully-resolved user (not the race-condition placeholder)
+    if (!user || user.role === 'loading') return;
     const onLoginPage =
       location.pathname === '/' ||
       location.pathname.startsWith('/portal') ||
@@ -63,7 +67,9 @@ export default function App() {
       await logout();
     }
     if (selectedRole === 'admin') { navigate('/admin/login'); return; }
-    navigate(`/portal/${selectedRole}${initialMode === 'signup' ? '?mode=signup' : ''}`);
+    // Support both 'signup' string and boolean true for signup mode
+    const isSignup = initialMode === 'signup' || initialMode === true;
+    navigate(`/portal/${selectedRole}${isSignup ? '?mode=signup' : ''}`);
   };
 
   return (
